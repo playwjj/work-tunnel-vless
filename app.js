@@ -56,7 +56,7 @@ async function getEnvVariable(variableName, defaultValue, required = false) {
       console.error(`环境变量 ${variableName} 的值不是有效的UUID格式`);
       process.exit(1);
     }
-    if (variableName === 'DOMAIN' && !isValidDomain(envValue)) {
+    if (variableName === 'TUNNEL_DOMAIN' && !isValidDomain(envValue)) {
       console.error(`环境变量 ${variableName} 的值不是有效的域名格式`);
       process.exit(1);
     }
@@ -81,7 +81,7 @@ async function getEnvVariable(variableName, defaultValue, required = false) {
     } else if (variableName === 'UUID' && !isValidUUID(input)) {
       console.log('请输入有效的UUID格式');
       input = '';
-    } else if (variableName === 'DOMAIN' && !isValidDomain(input)) {
+    } else if (variableName === 'TUNNEL_DOMAIN' && !isValidDomain(input)) {
       console.log('请输入有效的域名格式');
       input = '';
     }
@@ -102,8 +102,8 @@ async function main() {
     const PORT = await getEnvVariable('PORT', '3000', true);
     console.log('端口:', PORT);
 
-    const DOMAIN = await getEnvVariable('DOMAIN', '', true);
-    console.log('域名:', DOMAIN);
+    const TUNNEL_DOMAIN = await getEnvVariable('TUNNEL_DOMAIN', '', true);
+    console.log('域名:', TUNNEL_DOMAIN);
 
     const httpServer = http.createServer((req, res) => {
       try {
@@ -111,7 +111,7 @@ async function main() {
           res.writeHead(200, { 'Content-Type': 'text/plain' });
           res.end('Hello, World-YGkkk\n');
         } else if (req.url === `/${UUID}`) {
-          const vlessURL = `vless://${UUID}@${DOMAIN}:443?encryption=none&security=tls&sni=${DOMAIN}&fp=chrome&type=ws&host=${DOMAIN}&path=%2F#work-tunnel-${NAME}`;
+          const vlessURL = `vless://${UUID}@${TUNNEL_DOMAIN}:443?encryption=none&security=tls&sni=${TUNNEL_DOMAIN}&fp=chrome&type=ws&host=${TUNNEL_DOMAIN}&path=%2F#work-tunnel-${NAME}`;
           res.writeHead(200, { 'Content-Type': 'text/plain' });
           res.end(vlessURL + '\n');
         } else {
