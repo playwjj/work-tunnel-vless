@@ -1,6 +1,6 @@
 # Work Tunnel VLESS
 
-一个基于 Node.js 的 VLESS 代理服务器。
+一个基于 Node.js 的 Docker 化 VLESS 代理服务器，集成 Cloudflare Tunnel，为开发者提供安全、高效的一键式代理解决方案。  
 
 ## 功能特点
 
@@ -14,6 +14,31 @@
 
 - Node.js >= 14
 - npm
+
+## Cloudflare Zero Trust Tunnel 配置
+
+1. 登录 Cloudflare Zero Trust 控制台
+   - 访问 https://dash.cloudflare.com/
+   - 选择 "Zero Trust" 选项
+
+2. 创建 Tunnel
+   - 在左侧菜单选择 "Access" -> "Tunnels"
+   - 点击 "Create a tunnel"
+   - 输入隧道名称（例如：`work-tunnel-vless`）
+   - 选择 "Docker" 作为环境
+   - 复制生成的 Tunnel Token
+
+3. 配置 Public Hostname
+   - 在 Tunnel 详情页面，点击 "Configure"
+   - 选择 "Public Hostname" 标签
+   - 点击 "Add a public hostname"
+   - 输入你的域名（例如：`tunnel.yourdomain.com`）
+   - 选择 "HTTP" 服务类型
+   - 在 URL 中输入 `http://localhost:8080`（或你的 VLESS 服务端口）
+
+4. 获取必要的配置信息
+   - Tunnel Token：用于认证
+   - 域名：用于访问服务
 
 ## 安装步骤
 
@@ -91,8 +116,7 @@ npm start
 ```
 
 2. 访问以下地址获取 VLESS 链接：
-- 主页：`http://[域名]:[端口]/`
-- VLESS 链接：`http://[域名]:[端口]/[UUID]`
+- VLESS 链接：`https://[TUNNEL_DOMAIN]/[UUID]`
 
 ## 注意事项
 

@@ -133,7 +133,7 @@ async function main() {
     const uuid = UUID.replace(/-/g, "");
 
     wss.on('connection', ws => {
-      console.log('新的WebSocket连接已建立');
+      //console.log('新的WebSocket连接已建立');
       
       ws.once('message', msg => {
         try {
@@ -189,7 +189,7 @@ async function main() {
       });
 
       ws.on('close', () => {
-        console.log('WebSocket连接已关闭');
+        //console.log('WebSocket连接已关闭');
       });
     });
 
