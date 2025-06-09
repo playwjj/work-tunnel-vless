@@ -1,6 +1,6 @@
 {
   "name": "work-tunnel-vless",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Node.js Server",
   "main": "app.js",
   "author": "playwjj",
