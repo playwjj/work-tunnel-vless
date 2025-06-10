@@ -5,7 +5,11 @@ const path = require('path');
 const net = require('net');
 const { exec, execSync } = require('child_process');
 const { WebSocket, createWebSocketStream } = require('ws');
+const dns = require('dns');
 require('dotenv').config();
+
+// 设置DNS解析选项，优先使用IPv4
+dns.setDefaultResultOrder('ipv4first');
 
 // 设置最大内存使用限制
 const MAX_MEMORY_USAGE = 512 * 1024 * 1024; // 512MB
@@ -228,7 +232,8 @@ async function main() {
           const connection = net.connect({ 
             host, 
             port,
-            timeout: 10000
+            timeout: 10000,
+            family: 4  // 强制使用IPv4
           }, function () {
             clearTimeout(connectionTimeout);
             this.write(msg.slice(i));
@@ -240,7 +245,12 @@ async function main() {
               end: false,
               highWaterMark: 64 * 1024 // 64KB buffer
             }).on('error', (err) => {
+              // 忽略IPv6相关错误
+              if (err.code === 'ENETUNREACH' && err.address && err.address.includes(':')) {
+                return;
+              }
               console.error('TCP连接错误:', err);
+              ws.close();
             }).pipe(duplex, {
               end: false,
               highWaterMark: 64 * 1024
@@ -248,6 +258,10 @@ async function main() {
           });
 
           connection.on('error', (err) => {
+            // 忽略IPv6相关错误
+            if (err.code === 'ENETUNREACH' && err.address && err.address.includes(':')) {
+              return;
+            }
             console.error('TCP连接错误:', err);
             ws.close();
           });
