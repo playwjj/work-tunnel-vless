@@ -229,48 +229,71 @@ async function main() {
           ws.send(SUCCESS_RESPONSE);
           const duplex = createWebSocketStream(ws);
           
-          const connection = net.connect({ 
-            host, 
-            port,
-            timeout: 10000,
-            family: 4  // 强制使用IPv4
-          }, function () {
-            clearTimeout(connectionTimeout);
-            this.write(msg.slice(i));
-            
-            // 优化流处理
-            duplex.on('error', (err) => {
-              console.error('WebSocket流错误:', err);
-            }).pipe(this, { 
-              end: false,
-              highWaterMark: 64 * 1024 // 64KB buffer
-            }).on('error', (err) => {
+          let retryCount = 0;
+          const tryConnect = () => {
+            const connection = net.connect({ 
+              host, 
+              port,
+              timeout: 5000,        // 降低超时时间到5秒
+              family: 4,           // 强制使用IPv4
+              keepAlive: true,     // 启用keepalive
+              keepAliveInitialDelay: 10000,  // 10秒后开始keepalive
+              noDelay: true        // 禁用Nagle算法
+            }, function () {
+              clearTimeout(connectionTimeout);
+              this.write(msg.slice(i));
+              
+              // 优化流处理
+              duplex.on('error', (err) => {
+                console.error('WebSocket流错误:', err);
+              }).pipe(this, { 
+                end: false,
+                highWaterMark: 64 * 1024 // 64KB buffer
+              }).on('error', (err) => {
+                console.error('TCP连接错误:', err);
+              }).pipe(duplex, {
+                end: false,
+                highWaterMark: 64 * 1024
+              });
+            });
+
+            connection.on('error', (err) => {
               // 忽略IPv6相关错误
               if (err.code === 'ENETUNREACH' && err.address && err.address.includes(':')) {
                 return;
               }
-              console.error('TCP连接错误:', err);
-              ws.close();
-            }).pipe(duplex, {
-              end: false,
-              highWaterMark: 64 * 1024
+              
+              // 处理连接错误
+              if (retryCount < RETRY_CONFIG.maxRetries) {
+                retryCount++;
+                console.log(`连接失败，第${retryCount}次重试...`);
+                setTimeout(tryConnect, RETRY_CONFIG.retryDelay);
+              } else {
+                console.error('TCP连接错误:', err);
+                ws.close();
+              }
             });
-          });
 
-          connection.on('error', (err) => {
-            // 忽略IPv6相关错误
-            if (err.code === 'ENETUNREACH' && err.address && err.address.includes(':')) {
-              return;
-            }
-            console.error('TCP连接错误:', err);
-            ws.close();
-          });
+            connection.on('timeout', () => {
+              connection.destroy();
+              if (retryCount < RETRY_CONFIG.maxRetries) {
+                retryCount++;
+                console.log(`连接超时，第${retryCount}次重试...`);
+                setTimeout(tryConnect, RETRY_CONFIG.retryDelay);
+              } else {
+                console.error('TCP连接超时');
+                ws.close();
+              }
+            });
 
-          connection.on('timeout', () => {
-            console.error('TCP连接超时');
-            connection.destroy();
-            ws.close();
-          });
+            // 添加连接成功事件处理
+            connection.on('connect', () => {
+              console.log(`成功连接到 ${host}:${port}`);
+            });
+          };
+
+          // 开始连接尝试
+          tryConnect();
 
         } catch (error) {
           console.error('WebSocket消息处理错误:', error);
