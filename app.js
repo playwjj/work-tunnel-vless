@@ -7,9 +7,73 @@ const { exec, execSync } = require('child_process');
 const { WebSocket, createWebSocketStream } = require('ws');
 require('dotenv').config();
 
+// 设置最大内存使用限制
+const MAX_MEMORY_USAGE = 512 * 1024 * 1024; // 512MB
+
+// 定期检查内存使用
+setInterval(() => {
+  const used = process.memoryUsage();
+  if (used.heapUsed > MAX_MEMORY_USAGE) {
+    console.error('内存使用超过限制，准备重启服务');
+    process.exit(1);
+  }
+}, 60000); // 每分钟检查一次
+
+// 设置进程最大内存限制
+process.setMaxListeners(0); // 移除监听器限制
+
 // 读取 package.json 获取版本号
 const packageJson = require('./package.json');
 const VERSION = packageJson.version;
+
+// 预分配常用Buffer
+const VERSION_BUFFER = Buffer.from([0]);
+const SUCCESS_RESPONSE = Buffer.from([0, 0]);
+
+// 缓存常用对象
+const textDecoder = new TextDecoder();
+const emptyBuffer = Buffer.alloc(0);
+
+// 优化UUID验证
+function createUUIDValidator(uuid) {
+  const uuidBytes = Buffer.from(uuid.replace(/-/g, ''), 'hex');
+  return (id) => {
+    return id.equals(uuidBytes);
+  };
+}
+
+// 优化主机地址解析
+function parseHost(msg, startIndex) {
+  const ATYP = msg[startIndex];
+  let host, endIndex;
+  
+  switch(ATYP) {
+    case 1: // IPv4
+      host = msg.slice(startIndex + 1, startIndex + 5).join('.');
+      endIndex = startIndex + 5;
+      break;
+    case 2: // Domain
+      const domainLength = msg[startIndex + 1];
+      host = textDecoder.decode(msg.slice(startIndex + 2, startIndex + 2 + domainLength));
+      endIndex = startIndex + 2 + domainLength;
+      break;
+    case 3: // IPv6
+      const ipv6Bytes = msg.slice(startIndex + 1, startIndex + 17);
+      host = ipv6Bytes.reduce((acc, byte, i) => {
+        if (i % 2 === 0) {
+          acc.push(byte.toString(16).padStart(2, '0') + 
+                  ipv6Bytes[i + 1].toString(16).padStart(2, '0'));
+        }
+        return acc;
+      }, []).join(':');
+      endIndex = startIndex + 17;
+      break;
+    default:
+      throw new Error('Invalid address type');
+  }
+  
+  return { host, endIndex };
+}
 
 // 检查并安装必要的模块
 function ensureModule(name) {
@@ -109,7 +173,7 @@ async function main() {
       try {
         if (req.url === '/') {
           res.writeHead(200, { 'Content-Type': 'text/plain' });
-          res.end('Hello, World-YGkkk\n');
+          res.end('Hello, World!\n');
         } else if (req.url === `/${UUID}`) {
           const vlessURL = `vless://${UUID}@${TUNNEL_DOMAIN}:443?encryption=none&security=tls&sni=${TUNNEL_DOMAIN}&fp=chrome&type=ws&host=${TUNNEL_DOMAIN}&path=%2F#work-tunnel-${NAME}`;
           res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -133,14 +197,18 @@ async function main() {
     const uuid = UUID.replace(/-/g, "");
 
     wss.on('connection', ws => {
-      //console.log('新的WebSocket连接已建立');
-      
+      const connectionTimeout = setTimeout(() => {
+        ws.close();
+      }, 30000);
+
       ws.once('message', msg => {
         try {
           const [VERSION] = msg;
           const id = msg.slice(1, 17);
           
-          if (!id.every((v, i) => v == parseInt(uuid.substr(i * 2, 2), 16))) {
+          // 使用缓存的验证器
+          const validateUUID = createUUIDValidator(uuid);
+          if (!validateUUID(id)) {
             console.log('UUID验证失败');
             ws.close();
             return;
@@ -148,33 +216,45 @@ async function main() {
 
           let i = msg.slice(17, 18).readUInt8() + 19;
           const port = msg.slice(i, i += 2).readUInt16BE(0);
-          const ATYP = msg.slice(i, i += 1).readUInt8();
           
-          let host;
-          try {
-            host = ATYP == 1 ? msg.slice(i, i += 4).join('.') :
-              (ATYP == 2 ? new TextDecoder().decode(msg.slice(i + 1, i += 1 + msg.slice(i, i + 1).readUInt8())) :
-                (ATYP == 3 ? msg.slice(i, i += 16).reduce((s, b, i, a) => (i % 2 ? s.concat(a.slice(i - 1, i + 1)) : s), []).map(b => b.readUInt16BE(0).toString(16)).join(':') : ''));
-          } catch (error) {
-            console.error('解析主机地址失败:', error);
-            ws.close();
-            return;
-          }
+          // 使用优化的主机解析
+          const { host, endIndex } = parseHost(msg, i);
+          i = endIndex;
 
-          ws.send(new Uint8Array([VERSION, 0]));
+          // 使用预分配的Buffer
+          ws.send(SUCCESS_RESPONSE);
           const duplex = createWebSocketStream(ws);
           
-          const connection = net.connect({ host, port }, function () {
+          const connection = net.connect({ 
+            host, 
+            port,
+            timeout: 10000
+          }, function () {
+            clearTimeout(connectionTimeout);
             this.write(msg.slice(i));
+            
+            // 优化流处理
             duplex.on('error', (err) => {
               console.error('WebSocket流错误:', err);
-            }).pipe(this).on('error', (err) => {
+            }).pipe(this, { 
+              end: false,
+              highWaterMark: 64 * 1024 // 64KB buffer
+            }).on('error', (err) => {
               console.error('TCP连接错误:', err);
-            }).pipe(duplex);
+            }).pipe(duplex, {
+              end: false,
+              highWaterMark: 64 * 1024
+            });
           });
 
           connection.on('error', (err) => {
             console.error('TCP连接错误:', err);
+            ws.close();
+          });
+
+          connection.on('timeout', () => {
+            console.error('TCP连接超时');
+            connection.destroy();
             ws.close();
           });
 
@@ -189,7 +269,7 @@ async function main() {
       });
 
       ws.on('close', () => {
-        //console.log('WebSocket连接已关闭');
+        clearTimeout(connectionTimeout);
       });
     });
 
