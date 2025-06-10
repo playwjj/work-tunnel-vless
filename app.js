@@ -11,6 +11,21 @@ require('dotenv').config();
 // 设置DNS解析选项，优先使用IPv4
 dns.setDefaultResultOrder('ipv4first');
 
+// 连接配置
+const CONNECTION_CONFIG = {
+  timeout: 5000,        // 降低超时时间到5秒
+  family: 4,           // 强制使用IPv4
+  keepAlive: true,     // 启用keepalive
+  keepAliveInitialDelay: 10000,  // 10秒后开始keepalive
+  noDelay: true        // 禁用Nagle算法
+};
+
+// 连接重试配置
+const RETRY_CONFIG = {
+  maxRetries: 2,       // 最大重试次数
+  retryDelay: 1000     // 重试延迟（毫秒）
+};
+
 // 设置最大内存使用限制
 const MAX_MEMORY_USAGE = 512 * 1024 * 1024; // 512MB
 
@@ -234,11 +249,7 @@ async function main() {
             const connection = net.connect({ 
               host, 
               port,
-              timeout: 5000,        // 降低超时时间到5秒
-              family: 4,           // 强制使用IPv4
-              keepAlive: true,     // 启用keepalive
-              keepAliveInitialDelay: 10000,  // 10秒后开始keepalive
-              noDelay: true        // 禁用Nagle算法
+              ...CONNECTION_CONFIG
             }, function () {
               clearTimeout(connectionTimeout);
               this.write(msg.slice(i));
