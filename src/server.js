@@ -1,45 +1,69 @@
-require('dotenv').config();
-const http = require('http');
-const os = require('os');
-const { getEnvVariable } = require('./config');
-const { monitorMemoryUsage } = require('./utils/memory');
-const { setupWebSocketServer } = require('./wsHandler');
+require("dotenv").config();
+const http = require("http");
+const os = require("os");
+const { getEnvVariable } = require("./config");
+const { monitorMemoryUsage } = require("./utils/memory");
+const { setupWebSocketServer } = require("./wsHandler");
+const { isValidUUID, isValidPort, isValidDomain } = require("./utils/validators");
 
-async function main() {
-  const UUID = await getEnvVariable('UUID', '', true);
-  const PORT = await getEnvVariable('PORT', '3000', true);
-  const TUNNEL_DOMAIN = await getEnvVariable('TUNNEL_DOMAIN', '', true);
-  const NAME = process.env.NAME || os.hostname();
-
-  monitorMemoryUsage();
-
-  const server = http.createServer((req, res) => {
-    if (req.url === '/') {
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end('Hello, World!\n');
-    } else if (req.url === `/${UUID}`) {
-      const vlessURL = `vless://${UUID}@${TUNNEL_DOMAIN}:443?encryption=none&security=tls&sni=${TUNNEL_DOMAIN}&fp=chrome&type=ws&host=${TUNNEL_DOMAIN}&path=%2F#work-tunnel-${NAME}`;
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end(vlessURL + '\n');
-    } else {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Not Found\n');
-    }
-  });
-
-  server.listen(Number(PORT), () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
-
-  setupWebSocketServer(server, UUID.replace(/-/g, ''));
+// Function to generate VLESS URL
+function generateVlessUrl(uuid, domain, name, pathPrefix = "/work-tunnel-") {
+  const encodedPath = encodeURIComponent(`${pathPrefix}${name}`);
+  return `vless://${uuid}@${domain}:443?encryption=none&security=tls&sni=${domain}&fp=chrome&type=ws&host=${domain}&path=${encodedPath}`;
 }
 
-process.on('uncaughtException', err => {
-  console.error('未捕获异常:', err);
+async function main() {
+  try {
+    // Start memory monitoring as early as possible
+    monitorMemoryUsage();
+
+    const UUID = getEnvVariable("UUID", isValidUUID);
+    const PORT = getEnvVariable("PORT", isValidPort, "3000");
+    const TUNNEL_DOMAIN = getEnvVariable("TUNNEL_DOMAIN", isValidDomain);
+    const NAME = process.env.NAME || os.hostname();
+    const VLESS_PATH_PREFIX = process.env.VLESS_PATH_PREFIX || "/work-tunnel-";
+
+    const server = http.createServer((req, res) => {
+      try {
+        if (req.url === "/") {
+          res.writeHead(200, { "Content-Type": "text/plain" });
+          res.end("Hello, World!\n");
+        } else if (req.url === `/${UUID}`) {
+          const vlessURL = generateVlessUrl(UUID, TUNNEL_DOMAIN, NAME, VLESS_PATH_PREFIX);
+          res.writeHead(200, { "Content-Type": "text/plain" });
+          res.end(vlessURL + "\n");
+        } else {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.end("Not Found\n");
+        }
+      } catch (handlerError) {
+        console.error("处理 HTTP 请求时出错:", handlerError);
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end("Internal Server Error\n");
+      }
+    });
+
+    server.listen(Number(PORT), () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+
+    setupWebSocketServer(server, UUID.replace(/-/g, ""));
+  } catch (err) {
+    console.error("服务器启动失败:", err);
+    process.exit(1);
+  }
+}
+
+process.on("uncaughtException", (err) => {
+  console.error("未捕获异常:", err);
+  process.exit(1);
 });
 
-process.on('unhandledRejection', reason => {
-  console.error('未处理的 Promise 拒绝:', reason);
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("未处理的 Promise 拒绝:", reason, promise);
+  process.exit(1);
 });
 
 main();
+
+

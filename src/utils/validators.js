@@ -1,11 +1,11 @@
 function isValidUUID(uuid) {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
   return uuidRegex.test(uuid);
 }
 
-function isValidPort(port) {
+function isValidPort(port, min = 1, max = 65535) {
   const portNum = parseInt(port, 10);
-  return !isNaN(portNum) && portNum > 0 && portNum < 65536;
+  return !isNaN(portNum) && portNum >= min && portNum <= max;
 }
 
 function isValidDomain(domain) {
@@ -18,3 +18,5 @@ module.exports = {
   isValidPort,
   isValidDomain,
 };
+
+
