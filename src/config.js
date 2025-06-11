@@ -1,27 +1,23 @@
-const { isValidUUID, isValidPort, isValidDomain } = require("./validators");
 require("dotenv").config();
 
 function getEnvVariable(name, validator, defaultValue = "") {
   let value = process.env[name];
-
+  
   if (value) {
     if (!validator(value)) {
-      console.error(`环境变量 ${name} 的值无效: ${value}`);
-      process.exit(1);
+      throw new Error(`环境变量 ${name} 的值无效: ${value}`);
     }
     return value;
   }
-
+  
   if (defaultValue) {
     if (!validator(defaultValue)) {
-      console.error(`默认值 ${defaultValue} 为 ${name} 无效`);
-      process.exit(1);
+      throw new Error(`默认值 ${defaultValue} 为 ${name} 无效`);
     }
     return defaultValue;
   }
-
-  console.error(`缺少必要的环境变量: ${name}`);
-  process.exit(1);
+  
+  throw new Error(`缺少必要的环境变量: ${name}`);
 }
 
 module.exports = {

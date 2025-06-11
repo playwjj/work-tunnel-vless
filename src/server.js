@@ -27,7 +27,7 @@ async function main() {
       try {
         if (req.url === "/") {
           res.writeHead(200, { "Content-Type": "text/plain" });
-          res.end("Hello, World!\n");
+          res.end("Hello world!\n");
         } else if (req.url === `/${UUID}`) {
           const vlessURL = generateVlessUrl(UUID, TUNNEL_DOMAIN, NAME, VLESS_PATH_PREFIX);
           res.writeHead(200, { "Content-Type": "text/plain" });
