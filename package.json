@@ -1,6 +1,6 @@
 {
   "name": "work-tunnel-vless",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Node.js WebSocket Tunnel Server with VLESS Protocol",
   "main": "src/server.js",
   "scripts": {

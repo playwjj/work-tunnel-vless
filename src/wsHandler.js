@@ -47,12 +47,15 @@ function setupWebSocketServer(server, uuid) {
         let retries = 0;
 
         const connect = () => {
-          const socket = net.connect( { host, port, ...CONNECTION_CONFIG }, () => {
+          const socket = net.connect({ host, port, ...CONNECTION_CONFIG }, () => {
+            socket.setMaxListeners(5);
             socket.write(payload);
           });
 
           pipeline(wsStream, socket, (err) => {
-            if (err) console.error("[ERROR] WebSocket -> TCP 传输错误");
+            if (err && err.code !== 'ECONNRESET') {
+              console.error("[ERROR] WebSocket -> TCP 传输错误:", err.message);
+            }
             socket.destroy();
           });
 
@@ -74,6 +77,7 @@ function setupWebSocketServer(server, uuid) {
           });
 
           socket.on("close", () => {
+            socket.removeAllListeners();
             ws.close();
           });
         };
@@ -90,7 +94,7 @@ function setupWebSocketServer(server, uuid) {
     });
 
     ws.on("error", (err) => {
-      console.error("[ERROR] WebSocket 连接错误");
+      console.error("[ERROR] WebSocket 连接错误:", err.message);
       ws.close();
     });
   });
