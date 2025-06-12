@@ -53,7 +53,7 @@ function setupWebSocketServer(server, uuid) {
           });
 
           pipeline(wsStream, socket, (err) => {
-            if (err && err.code !== 'ECONNRESET') {
+            if (err && err.code !== 'ECONNRESET' && err.code !== 'ETIMEDOUT') {
               console.error("[ERROR] WebSocket -> TCP 传输错误:", err.message);
             }
             socket.destroy();
