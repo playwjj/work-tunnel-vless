@@ -37,8 +37,8 @@ function parseHost(msg, startIndex) {
       endIndex = startIndex + 17;
       break;
     default:
-      console.error("无效的地址类型:", ATYP);
-      return { host: null, endIndex: startIndex }; // Return null host and original startIndex
+      console.error("[ERROR] 无效的地址类型");
+      return { host: null, endIndex: startIndex };
   }
 
   return { host, endIndex };

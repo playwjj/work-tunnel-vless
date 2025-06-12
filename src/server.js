@@ -44,23 +44,24 @@ async function main() {
     });
 
     server.listen(Number(PORT), () => {
-      console.log(`Server is running on port ${PORT}`);
+      console.log(`[INFO] 服务已启动 - 端口: ${PORT}`);
     });
 
     setupWebSocketServer(server, UUID.replace(/-/g, ""));
   } catch (err) {
-    console.error("服务器启动失败:", err);
+    console.error("[ERROR] 服务启动失败:", err.message);
     process.exit(1);
   }
 }
 
+// 统一处理未捕获的错误
 process.on("uncaughtException", (err) => {
-  console.error("未捕获异常:", err);
+  console.error("[FATAL] 程序异常:", err.message);
   process.exit(1);
 });
 
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("未处理的 Promise 拒绝:", reason, promise);
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] Promise 异常:", reason);
   process.exit(1);
 });
 

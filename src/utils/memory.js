@@ -8,8 +8,7 @@ function monitorMemoryUsage(interval = 60000) {
   setInterval(() => {
     const used = process.memoryUsage();
     if (used.heapUsed > maxMemory) {
-      console.error(`内存使用超过限制 (${(used.heapUsed / (1024 * 1024)).toFixed(2)}MB / ${(maxMemory / (1024 * 1024)).toFixed(2)}MB)，准备重启服务`);
-      // In a production environment, consider more graceful shutdown or alerting mechanisms
+      console.error(`[FATAL] 内存使用超限: ${(used.heapUsed / (1024 * 1024)).toFixed(2)}MB / ${(maxMemory / (1024 * 1024)).toFixed(2)}MB`);
       process.exit(1);
     }
   }, interval);

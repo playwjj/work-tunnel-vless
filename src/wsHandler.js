@@ -12,7 +12,7 @@ function setupWebSocketServer(server, uuid) {
 
   wss.on("connection", (ws) => {
     let connectionTimeout = setTimeout(() => {
-      console.warn("连接超时，关闭连接");
+      console.warn("[WARN] 连接超时");
       ws.close();
     }, 30000);
 
@@ -22,7 +22,7 @@ function setupWebSocketServer(server, uuid) {
       try {
         const id = msg.slice(1, 17);
         if (!validateUUID(id)) {
-          console.warn("无效 UUID 连接尝试");
+          console.warn("[WARN] 无效的 UUID 连接");
           ws.close();
           return;
         }
@@ -33,7 +33,7 @@ function setupWebSocketServer(server, uuid) {
 
         const { host, endIndex } = parseHost(msg, i);
         if (!host) {
-          console.error("无法解析目标主机");
+          console.error("[ERROR] 无法解析目标主机");
           ws.close();
           return;
         }
@@ -52,47 +52,45 @@ function setupWebSocketServer(server, uuid) {
           });
 
           pipeline(wsStream, socket, (err) => {
-            if (err) console.error("WebSocket -> TCP 错误:", err.message);
+            if (err) console.error("[ERROR] WebSocket -> TCP 传输错误");
             socket.destroy();
           });
 
           pipeline(socket, wsStream, (err) => {
-            if (err) console.error("TCP -> WebSocket 错误:", err.message);
+            if (err) console.error("[ERROR] TCP -> WebSocket 传输错误");
             ws.close();
           });
 
           socket.on("error", (err) => {
-            console.error("TCP 连接错误:", err.message);
+            console.error("[ERROR] TCP 连接错误");
             if (retries < RETRY_CONFIG.maxRetries) {
               retries++;
-              console.log(`连接失败，尝试重试 ${retries}/${RETRY_CONFIG.maxRetries} 次...`);
+              console.log(`[INFO] 重试连接 (${retries}/${RETRY_CONFIG.maxRetries})`);
               setTimeout(connect, RETRY_CONFIG.retryDelay);
             } else {
-              console.error("达到最大重试次数，关闭连接");
+              console.error("[ERROR] 达到最大重试次数");
               ws.close();
             }
           });
 
           socket.on("close", () => {
-            console.log("TCP 连接关闭");
             ws.close();
           });
         };
 
         connect();
       } catch (err) {
-        console.error("处理 WebSocket 消息时出错:", err);
+        console.error("[ERROR] WebSocket 消息处理错误");
         ws.close();
       }
     });
 
     ws.on("close", () => {
       clearTimeout(connectionTimeout);
-      console.log("WebSocket 连接关闭");
     });
 
     ws.on("error", (err) => {
-      console.error("WebSocket 错误:", err);
+      console.error("[ERROR] WebSocket 连接错误");
       ws.close();
     });
   });
