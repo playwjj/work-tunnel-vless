@@ -7,8 +7,14 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    networks:
+      - work-tunnel-vless-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
+networks:
+  work-tunnel-vless-network:
+    driver: bridge
