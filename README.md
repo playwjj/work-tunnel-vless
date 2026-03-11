@@ -116,6 +116,8 @@ docker-compose up -d
 
 可选的环境变量：
 - `NAME`: 服务器名称（默认为主机名）
+- `TUNNEL_FORCE_IP_VERSION`: 强制使用指定 IP 版本连接 Cloudflare 边缘节点，设为 `6` 时强制使用 IPv6
+- `TUNNEL_TRANSPORT_PROTOCOL`: 指定 cloudflared 传输协议（如 `quic`、`http2` 等）
 
 ## 使用方法
 
