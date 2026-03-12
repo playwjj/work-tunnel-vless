@@ -9,6 +9,7 @@
 - 支持环境变量配置
 - 提供 WebSocket 连接
 - 自动安装依赖
+- 多架构支持：同时提供 `linux/amd64` 和 `linux/arm64` 镜像
 
 ## 应用场景
 
@@ -80,11 +81,18 @@ docker run -d \
 
 2. 或者从源码构建镜像：
 ```bash
+# 单架构构建（当前平台）
 docker build -t work-tunnel-vless .
 docker run -d \
   --name work-tunnel-vless \
   --env-file .env \
   work-tunnel-vless
+
+# 多架构构建（需要 Docker buildx）
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t work-tunnel-vless:latest \
+  --push .
 ```
 
 ### 使用 Docker Compose

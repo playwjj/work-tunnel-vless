@@ -13,6 +13,14 @@
 *   **自动依赖安装**: Docker 镜像构建过程自动处理所有依赖。
 *   **集成 Cloudflare Tunnel**: 利用 Cloudflare 的全球网络，无需公网 IP 即可暴露服务。
 *   **简便部署**: 支持 Docker run 和 Docker Compose 方式部署。
+*   **多架构支持**: 同时提供 `linux/amd64` 和 `linux/arm64` 镜像，适配 x86 服务器及 ARM 设备（树莓派、Apple Silicon 等）。
+
+### 🏗️ 支持架构
+
+| 架构 | 标签 |
+|------|------|
+| `linux/amd64` | `latest`, `x.x.x` |
+| `linux/arm64` | `latest`, `x.x.x` |
 
 ### 📋 技术要求
 
