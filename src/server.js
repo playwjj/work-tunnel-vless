@@ -12,6 +12,60 @@ function generateVlessUrl(uuid, domain, name, pathPrefix = "/work-tunnel-") {
   return `vless://${uuid}@${domain}:443?encryption=none&security=tls&sni=${domain}&fp=chrome&type=ws&host=${domain}&path=${encodedPath}`;
 }
 
+// Generate a Clash-compatible YAML config and return it as base64 string
+function generateClashConfig(uuid, domain, name, pathPrefix = "/work-tunnel-") {
+  const wsPath = `${pathPrefix}${name}`;
+  const nodeName = `${domain}:443`;
+  const yaml = `port: 7890
+socks-port: 7891
+redir-port: 0
+allow-lan: false
+mode: Rule
+log-level: info
+external-controller: :9090
+proxies:
+  - name: ${JSON.stringify(nodeName)}
+    type: vless
+    server: ${domain}
+    port: 443
+    uuid: ${uuid}
+    udp: true
+    tls: true
+    network: ws
+    servername: ${domain}
+    skip-cert-verify: true
+    ws-opts:
+      path: ${JSON.stringify(wsPath)}
+      headers:
+        Host: ${domain}
+
+proxy-groups:
+  - name: "🔰 节点选择"
+    type: select
+    proxies:
+      - "♻️ 自动选择"
+      - "🎯 全球直连"
+      - ${JSON.stringify(nodeName)}
+  
+  - name: "♻️ 自动选择"
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    proxies:
+      - ${JSON.stringify(nodeName)}
+  
+  - name: "🎯 全球直连"
+    type: select
+    proxies:
+      - DIRECT
+
+rules:
+  - MATCH,🔰 节点选择
+`;
+
+  return yaml;
+}
+
 async function main() {
   try {
     // Start memory monitoring as early as possible
@@ -28,6 +82,10 @@ async function main() {
         if (req.url === "/") {
           res.writeHead(200, { "Content-Type": "text/plain" });
           res.end("Hello world!\n");
+        } else if (req.url === `/clash/${UUID}`) {
+          const clashCfg = generateClashConfig(UUID, TUNNEL_DOMAIN, NAME, VLESS_PATH_PREFIX);
+          res.writeHead(200, { "Content-Type": "text/plain" });
+          res.end(clashCfg + "\n");
         } else if (req.url === `/${UUID}`) {
           const vlessURL = generateVlessUrl(UUID, TUNNEL_DOMAIN, NAME, VLESS_PATH_PREFIX);
           res.writeHead(200, { "Content-Type": "text/plain" });

@@ -136,6 +136,7 @@ npm start
 
 2. 访问以下地址获取 VLESS 链接：
 - VLESS 链接：`https://[TUNNEL_DOMAIN]/[UUID]`
+- CLASH 链接：`https://[TUNNEL_DOMAIN]/clash/[UUID]`
 
 ## 注意事项
 
