@@ -3,26 +3,28 @@
 # work-tunnel-vless 一键部署脚本
 #
 # 功能：
-#   1. 自动安装依赖（git / nodejs / npm，仅支持 Alpine 自动安装）
+#   1. 自动安装依赖（Alpine 用 apk，Ubuntu/Debian 用 apt）
 #   2. 从 GitHub 下载 src/ 目录和 package.json
-#   3. 下载 cloudflared 并注册 OpenRC 服务（开机自启）
+#   3. 下载 cloudflared（自动识别 CPU 架构）
 #   4. 交互式创建 .env 配置文件（已存在则跳过）
 #   5. 执行 npm install 安装依赖
-#   6. 注册 Node.js 应用 OpenRC 服务并启动（开机自动运行，SSH 关闭后持续运行）
+#   6. 注册并启动系统服务（开机自启，SSH 关闭后持续运行）
+#      Alpine  → OpenRC
+#      Ubuntu/Debian → systemd
 #
 # 兼容系统：
-#   Alpine Linux 3.20+（推荐）、任意已安装 git + node + npm 的 Linux 系统
+#   Alpine Linux 3.20+、Ubuntu 20.04+、Debian 11+
 #
 # 使用方法：
 #
-#   方式一：wget（Alpine 默认可用）
-#     wget -qO /tmp/s.sh https://raw.githubusercontent.com/playwjj/work-tunnel-vless/main/download-src.sh && sh /tmp/s.sh
+#   方式一：wget
+#     wget -qO /tmp/s.sh https://raw.githubusercontent.com/playwjj/work-tunnel-vless/main/install.sh && sh /tmp/s.sh
 #
 #   方式二：curl
-#     curl -fsSL https://raw.githubusercontent.com/playwjj/work-tunnel-vless/main/download-src.sh -o /tmp/s.sh && sh /tmp/s.sh
+#     curl -fsSL https://raw.githubusercontent.com/playwjj/work-tunnel-vless/main/install.sh -o /tmp/s.sh && sh /tmp/s.sh
 #
 #   方式三：本地运行
-#     sh download-src.sh
+#     sh install.sh
 #
 # 环境变量说明（运行时交互输入）：
 #   UUID          VLESS 用户 UUID，必填
@@ -33,22 +35,38 @@
 #
 set -e
 
-# ── 依赖自检（Alpine 自动安装）────────────────────────────────
+# ── 检测初始化系统 ────────────────────────────────────────────
+detect_init() {
+  if command -v rc-service >/dev/null 2>&1; then
+    echo "openrc"
+  elif command -v systemctl >/dev/null 2>&1; then
+    echo "systemd"
+  else
+    echo "unknown"
+  fi
+}
+
+INIT_SYS="$(detect_init)"
+
+# ── 依赖自检与安装 ────────────────────────────────────────────
 check_deps() {
   MISSING=""
   for cmd in git node npm; do
     command -v "$cmd" >/dev/null 2>&1 || MISSING="$MISSING $cmd"
   done
 
-  if [ -n "$MISSING" ]; then
-    if command -v apk >/dev/null 2>&1; then
-      echo "==> Installing missing dependencies:$MISSING ..."
-      apk add --no-cache git nodejs npm
-    else
-      echo "Error: missing dependencies:$MISSING" >&2
-      echo "Please install them manually and re-run." >&2
-      exit 1
-    fi
+  [ -z "$MISSING" ] && return
+
+  echo "==> Installing missing dependencies:$MISSING ..."
+  if command -v apk >/dev/null 2>&1; then
+    apk add --no-cache git nodejs npm
+  elif command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq
+    apt-get install -y -qq git nodejs npm
+  else
+    echo "Error: missing dependencies:$MISSING" >&2
+    echo "Please install them manually and re-run." >&2
+    exit 1
   fi
 }
 
@@ -140,22 +158,19 @@ else
   printf "Enter UUID (required): "
   read -r UUID_VAL
   if [ -z "$UUID_VAL" ]; then
-    echo "Error: UUID cannot be empty." >&2
-    exit 1
+    echo "Error: UUID cannot be empty." >&2; exit 1
   fi
 
   printf "Enter TUNNEL_DOMAIN (required, e.g. example.com): "
   read -r DOMAIN_VAL
   if [ -z "$DOMAIN_VAL" ]; then
-    echo "Error: TUNNEL_DOMAIN cannot be empty." >&2
-    exit 1
+    echo "Error: TUNNEL_DOMAIN cannot be empty." >&2; exit 1
   fi
 
   printf "Enter TUNNEL_TOKEN (required): "
   read -r TOKEN_VAL
   if [ -z "$TOKEN_VAL" ]; then
-    echo "Error: TUNNEL_TOKEN cannot be empty." >&2
-    exit 1
+    echo "Error: TUNNEL_TOKEN cannot be empty." >&2; exit 1
   fi
 
   printf "Enter PORT [default: 3000]: "
@@ -173,7 +188,6 @@ PORT=$PORT_VAL
 EOF
 
   [ -n "$NAME_VAL" ] && printf "NAME=%s\n" "$NAME_VAL" >> "$DEST/.env"
-
   echo "    .env created."
 fi
 
@@ -182,14 +196,13 @@ echo "==> Running npm install ..."
 cd "$DEST"
 npm install
 
-# ── OpenRC：Node.js 应用服务 ──────────────────────────────────
+# ── 服务注册 ──────────────────────────────────────────────────
 SERVICE_NAME="$(basename "$DEST")"
-SERVICE_FILE="/etc/init.d/$SERVICE_NAME"
 NODE_BIN="$(command -v node)"
 
-echo "==> Setting up OpenRC service: $SERVICE_NAME ..."
-
-cat > "$SERVICE_FILE" << EOF
+setup_openrc() {
+  # Node.js 服务
+  cat > "/etc/init.d/$SERVICE_NAME" << EOF
 #!/sbin/openrc-run
 
 name="$SERVICE_NAME"
@@ -206,26 +219,20 @@ depend() {
     need net
 }
 EOF
+  chmod +x "/etc/init.d/$SERVICE_NAME"
+  rc-update add "$SERVICE_NAME" default 2>/dev/null || true
+  rc-service "$SERVICE_NAME" restart
 
-chmod +x "$SERVICE_FILE"
-rc-update add "$SERVICE_NAME" default 2>/dev/null || true
-rc-service "$SERVICE_NAME" restart
-echo "    Service $SERVICE_NAME started."
-
-# ── OpenRC：cloudflared 服务 ──────────────────────────────────
-CF_SERVICE_FILE="/etc/init.d/cloudflared"
-
-echo "==> Setting up OpenRC service: cloudflared ..."
-
-# 启动脚本从 .env 读取 TUNNEL_TOKEN
-cat > "$DEST/start-cloudflared.sh" << EOF
+  # cloudflared 启动脚本（从 .env 读取 TOKEN）
+  cat > "$DEST/start-cloudflared.sh" << EOF
 #!/bin/sh
 . "$DEST/.env"
 exec $CF_BIN tunnel --no-autoupdate run --token "\$TUNNEL_TOKEN"
 EOF
-chmod +x "$DEST/start-cloudflared.sh"
+  chmod +x "$DEST/start-cloudflared.sh"
 
-cat > "$CF_SERVICE_FILE" << EOF
+  # cloudflared 服务
+  cat > "/etc/init.d/cloudflared" << EOF
 #!/sbin/openrc-run
 
 name="cloudflared"
@@ -241,21 +248,85 @@ depend() {
     after $SERVICE_NAME
 }
 EOF
+  chmod +x "/etc/init.d/cloudflared"
+  rc-update add cloudflared default 2>/dev/null || true
+  rc-service cloudflared restart
+}
 
-chmod +x "$CF_SERVICE_FILE"
-rc-update add cloudflared default 2>/dev/null || true
-rc-service cloudflared restart
-echo "    Service cloudflared started."
+setup_systemd() {
+  # Node.js 服务
+  cat > "/etc/systemd/system/$SERVICE_NAME.service" << EOF
+[Unit]
+Description=work-tunnel-vless VLESS tunnel service
+After=network.target
+
+[Service]
+WorkingDirectory=$DEST
+ExecStart=$NODE_BIN src/server.js
+EnvironmentFile=$DEST/.env
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  # cloudflared 服务
+  cat > "/etc/systemd/system/cloudflared.service" << EOF
+[Unit]
+Description=Cloudflare Tunnel
+After=network.target $SERVICE_NAME.service
+
+[Service]
+EnvironmentFile=$DEST/.env
+ExecStart=$CF_BIN tunnel --no-autoupdate run --token \${TUNNEL_TOKEN}
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  systemctl daemon-reload
+  systemctl enable "$SERVICE_NAME" cloudflared
+  systemctl restart "$SERVICE_NAME"
+  systemctl restart cloudflared
+}
+
+echo "==> Setting up services (init: $INIT_SYS) ..."
+case "$INIT_SYS" in
+  openrc)  setup_openrc ;;
+  systemd) setup_systemd ;;
+  *)
+    echo "Warning: unknown init system, skipping service setup." >&2
+    echo "Please start manually: cd $DEST && node src/server.js"
+    ;;
+esac
 
 # ── 完成 ──────────────────────────────────────────────────────
 echo ""
 echo "=============================="
 echo "  Deploy complete!"
 echo "=============================="
-echo "  Useful commands:"
-echo "    rc-service $SERVICE_NAME status    # Node 应用状态"
-echo "    rc-service cloudflared status      # Cloudflare 隧道状态"
-echo "    rc-service $SERVICE_NAME restart   # 重启 Node 应用"
-echo "    rc-service cloudflared restart     # 重启 Cloudflare 隧道"
-echo "    tail -f /var/log/$SERVICE_NAME.log   # Node 应用日志"
-echo "    tail -f /var/log/cloudflared.log   # Cloudflare 隧道日志"
+
+if [ "$INIT_SYS" = "systemd" ]; then
+  echo "  Useful commands:"
+  echo "    systemctl status $SERVICE_NAME     # Node 应用状态"
+  echo "    systemctl status cloudflared        # Cloudflare 隧道状态"
+  echo "    systemctl restart $SERVICE_NAME    # 重启 Node 应用"
+  echo "    systemctl restart cloudflared       # 重启 Cloudflare 隧道"
+  echo "    journalctl -fu $SERVICE_NAME       # Node 应用日志"
+  echo "    journalctl -fu cloudflared          # Cloudflare 隧道日志"
+else
+  echo "  Useful commands:"
+  echo "    rc-service $SERVICE_NAME status    # Node 应用状态"
+  echo "    rc-service cloudflared status       # Cloudflare 隧道状态"
+  echo "    rc-service $SERVICE_NAME restart   # 重启 Node 应用"
+  echo "    rc-service cloudflared restart      # 重启 Cloudflare 隧道"
+  echo "    tail -f /var/log/$SERVICE_NAME.log # Node 应用日志"
+  echo "    tail -f /var/log/cloudflared.log    # Cloudflare 隧道日志"
+fi
