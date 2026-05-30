@@ -50,9 +50,9 @@
    - Tunnel Token：用于认证
    - 域名：用于访问服务
 
-## 一键部署（推荐）
+## 一键部署（无 Docker，推荐）
 
-支持 Alpine Linux、Ubuntu 20.04+、Debian 11+，自动完成依赖安装、文件下载、配置创建及服务注册。
+直接在宿主机运行，无需安装 Docker。支持 Alpine Linux、Ubuntu 20.04+、Debian 11+，自动完成依赖安装、文件下载、配置创建及服务注册。
 
 **wget：**
 ```bash
