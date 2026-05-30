@@ -62,7 +62,9 @@ check_deps() {
     apk add --no-cache git nodejs npm
   elif command -v apt-get >/dev/null 2>&1; then
     apt-get update -qq
-    apt-get install -y -qq git nodejs npm
+    apt-get install -y -qq git curl
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | sh -
+    apt-get install -y -qq nodejs
   else
     echo "Error: missing dependencies:$MISSING" >&2
     echo "Please install them manually and re-run." >&2
@@ -281,7 +283,7 @@ After=network.target $SERVICE_NAME.service
 
 [Service]
 EnvironmentFile=$DEST/.env
-ExecStart=$CF_BIN tunnel --no-autoupdate run --token \${TUNNEL_TOKEN}
+ExecStart=$CF_BIN tunnel --no-autoupdate run --token \$TUNNEL_TOKEN
 Restart=always
 RestartSec=5
 StandardOutput=journal
