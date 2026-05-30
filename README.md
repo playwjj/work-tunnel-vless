@@ -50,6 +50,49 @@
    - Tunnel Token：用于认证
    - 域名：用于访问服务
 
+## 一键部署（推荐）
+
+支持 Alpine Linux、Ubuntu 20.04+、Debian 11+，自动完成依赖安装、文件下载、配置创建及服务注册。
+
+**wget：**
+```bash
+wget -qO /tmp/s.sh https://raw.githubusercontent.com/playwjj/work-tunnel-vless/main/install.sh && sh /tmp/s.sh
+```
+
+**curl：**
+```bash
+curl -fsSL https://raw.githubusercontent.com/playwjj/work-tunnel-vless/main/install.sh -o /tmp/s.sh && sh /tmp/s.sh
+```
+
+脚本会依次提示输入以下信息：
+
+| 参数 | 说明 | 是否必填 |
+|------|------|----------|
+| Install directory | 安装目录名，默认 `work-tunnel-vless` | 可选 |
+| UUID | VLESS 用户 UUID | 必填 |
+| TUNNEL_DOMAIN | 公网域名，例如 `example.com` | 必填 |
+| TUNNEL_TOKEN | Cloudflare Tunnel Token | 必填 |
+| PORT | 监听端口，默认 `3000` | 可选 |
+| NAME | 节点名称，默认取系统 hostname | 可选 |
+
+部署完成后服务自动注册为系统服务并开机自启，常用管理命令：
+
+```bash
+# Alpine (OpenRC)
+rc-service work-tunnel-vless restart
+rc-service cloudflared restart
+tail -f /var/log/work-tunnel-vless.log
+
+# Ubuntu/Debian (systemd)
+systemctl restart work-tunnel-vless
+systemctl restart cloudflared
+journalctl -fu work-tunnel-vless
+```
+
+> `.env` 文件已存在时脚本会跳过创建，重复执行可用于更新代码。如需修改配置，手动编辑 `.env` 后重启服务即可。
+
+---
+
 ## 安装步骤
 
 1. 克隆仓库：
