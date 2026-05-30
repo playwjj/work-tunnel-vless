@@ -43,9 +43,7 @@ fi
 
 # ── 下载文件 ─────────────────────────────────────────────────
 download_with_git() {
-  git clone -q --depth 1 --filter=blob:none --sparse \
-    "https://github.com/$REPO.git" "$TMP_DIR/repo"
-  git -C "$TMP_DIR/repo" sparse-checkout set src
+  git clone -q --depth 1 "https://github.com/$REPO.git" "$TMP_DIR/repo"
   mkdir -p "$DEST/src"
   cp -r "$TMP_DIR/repo/src/." "$DEST/src/"
   cp "$TMP_DIR/repo/package.json" "$DEST/package.json"
