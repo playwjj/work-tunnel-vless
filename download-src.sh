@@ -7,7 +7,7 @@
 #   2. 从 GitHub 下载 src/ 目录和 package.json
 #   3. 交互式创建 .env 配置文件（已存在则跳过）
 #   4. 执行 npm install 安装依赖
-#   5. 执行 npm run start 启动服务
+#   5. 注册 OpenRC 服务并启动（开机自动运行，SSH 关闭后持续运行）
 #
 # 兼容系统：
 #   Alpine Linux 3.20+（推荐）、任意已安装 git + node + npm 的 Linux 系统
@@ -149,6 +149,38 @@ echo "==> Running npm install ..."
 cd "$DEST"
 npm install
 
-# ── npm run start ─────────────────────────────────────────────
-echo "==> Starting application ..."
-npm run start
+# ── OpenRC 服务 ───────────────────────────────────────────────
+SERVICE_NAME="$(basename "$DEST")"
+SERVICE_FILE="/etc/init.d/$SERVICE_NAME"
+NODE_BIN="$(command -v node)"
+
+echo "==> Setting up OpenRC service: $SERVICE_NAME ..."
+
+cat > "$SERVICE_FILE" << EOF
+#!/sbin/openrc-run
+
+name="$SERVICE_NAME"
+description="work-tunnel-vless VLESS tunnel service"
+command="$NODE_BIN"
+command_args="src/server.js"
+directory="$DEST"
+command_background=true
+pidfile="/run/\${RC_SVCNAME}.pid"
+output_log="/var/log/\${RC_SVCNAME}.log"
+error_log="/var/log/\${RC_SVCNAME}.log"
+
+depend() {
+    need net
+}
+EOF
+
+chmod +x "$SERVICE_FILE"
+rc-update add "$SERVICE_NAME" default
+rc-service "$SERVICE_NAME" start
+echo "    Service $SERVICE_NAME started and enabled on boot."
+echo ""
+echo "  Useful commands:"
+echo "    rc-service $SERVICE_NAME status   # 查看状态"
+echo "    rc-service $SERVICE_NAME stop     # 停止服务"
+echo "    rc-service $SERVICE_NAME restart  # 重启服务"
+echo "    tail -f /var/log/$SERVICE_NAME.log  # 查看日志"
