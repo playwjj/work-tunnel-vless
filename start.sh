@@ -20,4 +20,4 @@ fi
 echo "Starting cloudflared with args: $CLOUDFLARED_ARGS"
 
 # 启动 cloudflared tunnel
-exec cloudflared tunnel $CLOUDFLARED_ARGS run --token $TUNNEL_TOKEN
+exec cloudflared tunnel $CLOUDFLARED_ARGS run --token "$TUNNEL_TOKEN"

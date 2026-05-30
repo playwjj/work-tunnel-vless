@@ -2,7 +2,7 @@ const { WebSocketServer, createWebSocketStream } = require("ws");
 const net = require("net");
 const { pipeline } = require("stream");
 const { parseHost, createUUIDValidator } = require("./utils/parser");
-const { CONNECTION_CONFIG, RETRY_CONFIG } = require("./config");
+const { CONNECTION_CONFIG } = require("./config");
 
 const SUCCESS_RESPONSE = Buffer.from([0x00, 0x00]);
 
@@ -44,47 +44,31 @@ function setupWebSocketServer(server, uuid) {
         ws.send(SUCCESS_RESPONSE);
         const wsStream = createWebSocketStream(ws);
 
-        let retries = 0;
+        const socket = net.connect({ host, port, ...CONNECTION_CONFIG }, () => {
+          socket.write(payload);
+        });
+        socket.setMaxListeners(5);
 
-        const connect = () => {
-          const socket = net.connect({ host, port, ...CONNECTION_CONFIG }, () => {
-            socket.setMaxListeners(5);
-            socket.write(payload);
-          });
+        pipeline(wsStream, socket, (err) => {
+          if (err && err.code !== 'ECONNRESET' && err.code !== 'ETIMEDOUT') {
+            console.error("[ERROR] WebSocket -> TCP 传输错误:", err.message);
+          }
+          socket.destroy();
+        });
 
-          pipeline(wsStream, socket, (err) => {
-            if (err && err.code !== 'ECONNRESET' && err.code !== 'ETIMEDOUT') {
-              console.error("[ERROR] WebSocket -> TCP 传输错误:", err.message);
-            }
-            socket.destroy();
-          });
+        pipeline(socket, wsStream, (err) => {
+          if (err && err.code !== 'ECONNRESET' && err.code !== 'ETIMEDOUT') {
+            console.error("[ERROR] TCP -> WebSocket 传输错误:", err.message);
+          }
+          ws.close();
+        });
 
-          pipeline(socket, wsStream, (err) => {
-            if (err) console.error("[ERROR] TCP -> WebSocket 传输错误");
-            ws.close();
-          });
-
-          socket.on("error", (err) => {
-            console.error("[ERROR] TCP 连接错误");
-            if (retries < RETRY_CONFIG.maxRetries) {
-              retries++;
-              console.log(`[INFO] 重试连接 (${retries}/${RETRY_CONFIG.maxRetries})`);
-              setTimeout(connect, RETRY_CONFIG.retryDelay);
-            } else {
-              console.error("[ERROR] 达到最大重试次数");
-              ws.close();
-            }
-          });
-
-          socket.on("close", () => {
-            socket.removeAllListeners();
-            ws.close();
-          });
-        };
-
-        connect();
+        socket.on("error", (err) => {
+          console.error("[ERROR] TCP 连接错误:", err.message);
+          ws.close();
+        });
       } catch (err) {
-        console.error("[ERROR] WebSocket 消息处理错误");
+        console.error("[ERROR] WebSocket 消息处理错误:", err.message);
         ws.close();
       }
     });
