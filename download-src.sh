@@ -175,8 +175,8 @@ depend() {
 EOF
 
 chmod +x "$SERVICE_FILE"
-rc-update add "$SERVICE_NAME" default
-rc-service "$SERVICE_NAME" start
+rc-update add "$SERVICE_NAME" default 2>/dev/null || true
+rc-service "$SERVICE_NAME" restart
 echo "    Service $SERVICE_NAME started and enabled on boot."
 echo ""
 echo "  Useful commands:"
