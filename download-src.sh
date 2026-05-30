@@ -43,15 +43,12 @@ fi
 
 # ── 下载文件 ─────────────────────────────────────────────────
 download_with_git() {
-  git -C "$TMP_DIR" init -q
-  git -C "$TMP_DIR" remote add origin "https://github.com/$REPO.git"
-  git -C "$TMP_DIR" sparse-checkout init --cone
-  git -C "$TMP_DIR" sparse-checkout set src
-  git -C "$TMP_DIR" pull -q origin "$BRANCH"
+  git clone -q --depth 1 --filter=blob:none --sparse \
+    "https://github.com/$REPO.git" "$TMP_DIR/repo"
+  git -C "$TMP_DIR/repo" sparse-checkout set src
   mkdir -p "$DEST/src"
-  cp -r "$TMP_DIR/src/." "$DEST/src/"
-  cp "$TMP_DIR/package.json" "$DEST/package.json"
-  cp "$TMP_DIR/index.js" "$DEST/index.js"
+  cp -r "$TMP_DIR/repo/src/." "$DEST/src/"
+  cp "$TMP_DIR/repo/package.json" "$DEST/package.json"
 }
 
 download_with_curl() {
@@ -68,8 +65,6 @@ download_with_curl() {
 
   echo "  package.json"
   curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/package.json" -o "$DEST/package.json"
-  echo "  index.js"
-  curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/index.js" -o "$DEST/index.js"
 }
 
 echo "==> Downloading files from $REPO ..."
@@ -81,7 +76,7 @@ else
   echo "Error: git or curl is required." >&2
   exit 1
 fi
-echo "    src/, index.js and package.json downloaded."
+echo "    src/ and package.json downloaded."
 
 # ── 创建 .env ─────────────────────────────────────────────────
 if [ -f "$DEST/.env" ]; then
