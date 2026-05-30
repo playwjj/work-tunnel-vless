@@ -5,9 +5,10 @@
 # 功能：
 #   1. 自动安装依赖（git / nodejs / npm，仅支持 Alpine 自动安装）
 #   2. 从 GitHub 下载 src/ 目录和 package.json
-#   3. 交互式创建 .env 配置文件（已存在则跳过）
-#   4. 执行 npm install 安装依赖
-#   5. 注册 OpenRC 服务并启动（开机自动运行，SSH 关闭后持续运行）
+#   3. 下载 cloudflared 并注册 OpenRC 服务（开机自启）
+#   4. 交互式创建 .env 配置文件（已存在则跳过）
+#   5. 执行 npm install 安装依赖
+#   6. 注册 Node.js 应用 OpenRC 服务并启动（开机自动运行，SSH 关闭后持续运行）
 #
 # 兼容系统：
 #   Alpine Linux 3.20+（推荐）、任意已安装 git + node + npm 的 Linux 系统
@@ -26,6 +27,7 @@
 # 环境变量说明（运行时交互输入）：
 #   UUID          VLESS 用户 UUID，必填
 #   TUNNEL_DOMAIN 公网域名，必填，例如 example.com
+#   TUNNEL_TOKEN  Cloudflare Tunnel Token，必填
 #   PORT          监听端口，可选，默认 3000
 #   NAME          节点名称，可选，默认取系统 hostname
 #
@@ -71,7 +73,7 @@ else
   echo "==> Created directory: $DEST"
 fi
 
-# ── 下载文件 ─────────────────────────────────────────────────
+# ── 下载项目文件 ──────────────────────────────────────────────
 download_with_git() {
   git clone -q --depth 1 "https://github.com/$REPO.git" "$TMP_DIR/repo"
   mkdir -p "$DEST/src"
@@ -106,6 +108,29 @@ else
 fi
 echo "    src/ and package.json downloaded."
 
+# ── 下载 cloudflared ──────────────────────────────────────────
+CF_BIN="/usr/local/bin/cloudflared"
+
+if [ -f "$CF_BIN" ]; then
+  echo "==> cloudflared already exists, skipping download."
+else
+  echo "==> Downloading cloudflared ..."
+  case "$(uname -m)" in
+    x86_64)  CF_ARCH="amd64" ;;
+    aarch64) CF_ARCH="arm64" ;;
+    armv7l)  CF_ARCH="arm" ;;
+    *) echo "Error: unsupported architecture $(uname -m)" >&2; exit 1 ;;
+  esac
+  CF_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$CF_ARCH"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$CF_URL" -o "$CF_BIN"
+  else
+    wget -qO "$CF_BIN" "$CF_URL"
+  fi
+  chmod +x "$CF_BIN"
+  echo "    cloudflared downloaded to $CF_BIN"
+fi
+
 # ── 创建 .env ─────────────────────────────────────────────────
 if [ -f "$DEST/.env" ]; then
   echo "==> .env already exists, skipping creation."
@@ -126,6 +151,13 @@ else
     exit 1
   fi
 
+  printf "Enter TUNNEL_TOKEN (required): "
+  read -r TOKEN_VAL
+  if [ -z "$TOKEN_VAL" ]; then
+    echo "Error: TUNNEL_TOKEN cannot be empty." >&2
+    exit 1
+  fi
+
   printf "Enter PORT [default: 3000]: "
   read -r PORT_VAL
   PORT_VAL="${PORT_VAL:-3000}"
@@ -136,6 +168,7 @@ else
   cat > "$DEST/.env" << EOF
 UUID=$UUID_VAL
 TUNNEL_DOMAIN=$DOMAIN_VAL
+TUNNEL_TOKEN=$TOKEN_VAL
 PORT=$PORT_VAL
 EOF
 
@@ -149,7 +182,7 @@ echo "==> Running npm install ..."
 cd "$DEST"
 npm install
 
-# ── OpenRC 服务 ───────────────────────────────────────────────
+# ── OpenRC：Node.js 应用服务 ──────────────────────────────────
 SERVICE_NAME="$(basename "$DEST")"
 SERVICE_FILE="/etc/init.d/$SERVICE_NAME"
 NODE_BIN="$(command -v node)"
@@ -177,10 +210,52 @@ EOF
 chmod +x "$SERVICE_FILE"
 rc-update add "$SERVICE_NAME" default 2>/dev/null || true
 rc-service "$SERVICE_NAME" restart
-echo "    Service $SERVICE_NAME started and enabled on boot."
+echo "    Service $SERVICE_NAME started."
+
+# ── OpenRC：cloudflared 服务 ──────────────────────────────────
+CF_SERVICE_FILE="/etc/init.d/cloudflared"
+
+echo "==> Setting up OpenRC service: cloudflared ..."
+
+# 启动脚本从 .env 读取 TUNNEL_TOKEN
+cat > "$DEST/start-cloudflared.sh" << EOF
+#!/bin/sh
+. "$DEST/.env"
+exec $CF_BIN tunnel --no-autoupdate run --token "\$TUNNEL_TOKEN"
+EOF
+chmod +x "$DEST/start-cloudflared.sh"
+
+cat > "$CF_SERVICE_FILE" << EOF
+#!/sbin/openrc-run
+
+name="cloudflared"
+description="Cloudflare Tunnel"
+command="$DEST/start-cloudflared.sh"
+command_background=true
+pidfile="/run/\${RC_SVCNAME}.pid"
+output_log="/var/log/\${RC_SVCNAME}.log"
+error_log="/var/log/\${RC_SVCNAME}.log"
+
+depend() {
+    need net
+    after $SERVICE_NAME
+}
+EOF
+
+chmod +x "$CF_SERVICE_FILE"
+rc-update add cloudflared default 2>/dev/null || true
+rc-service cloudflared restart
+echo "    Service cloudflared started."
+
+# ── 完成 ──────────────────────────────────────────────────────
 echo ""
+echo "=============================="
+echo "  Deploy complete!"
+echo "=============================="
 echo "  Useful commands:"
-echo "    rc-service $SERVICE_NAME status   # 查看状态"
-echo "    rc-service $SERVICE_NAME stop     # 停止服务"
-echo "    rc-service $SERVICE_NAME restart  # 重启服务"
-echo "    tail -f /var/log/$SERVICE_NAME.log  # 查看日志"
+echo "    rc-service $SERVICE_NAME status    # Node 应用状态"
+echo "    rc-service cloudflared status      # Cloudflare 隧道状态"
+echo "    rc-service $SERVICE_NAME restart   # 重启 Node 应用"
+echo "    rc-service cloudflared restart     # 重启 Cloudflare 隧道"
+echo "    tail -f /var/log/$SERVICE_NAME.log   # Node 应用日志"
+echo "    tail -f /var/log/cloudflared.log   # Cloudflare 隧道日志"
