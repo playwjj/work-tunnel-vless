@@ -1,4 +1,34 @@
 #!/bin/sh
+#
+# work-tunnel-vless 一键部署脚本
+#
+# 功能：
+#   1. 自动安装依赖（git / nodejs / npm，仅支持 Alpine 自动安装）
+#   2. 从 GitHub 下载 src/ 目录和 package.json
+#   3. 交互式创建 .env 配置文件（已存在则跳过）
+#   4. 执行 npm install 安装依赖
+#   5. 执行 npm run start 启动服务
+#
+# 兼容系统：
+#   Alpine Linux 3.20+（推荐）、任意已安装 git + node + npm 的 Linux 系统
+#
+# 使用方法：
+#
+#   方式一：wget（Alpine 默认可用）
+#     wget -qO /tmp/s.sh https://raw.githubusercontent.com/playwjj/work-tunnel-vless/main/download-src.sh && sh /tmp/s.sh
+#
+#   方式二：curl
+#     curl -fsSL https://raw.githubusercontent.com/playwjj/work-tunnel-vless/main/download-src.sh -o /tmp/s.sh && sh /tmp/s.sh
+#
+#   方式三：本地运行
+#     sh download-src.sh
+#
+# 环境变量说明（运行时交互输入）：
+#   UUID          VLESS 用户 UUID，必填
+#   TUNNEL_DOMAIN 公网域名，必填，例如 example.com
+#   PORT          监听端口，可选，默认 3000
+#   NAME          节点名称，可选，默认取系统 hostname
+#
 set -e
 
 # ── 依赖自检（Alpine 自动安装）────────────────────────────────
