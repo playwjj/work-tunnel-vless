@@ -7,8 +7,8 @@ const { setupWebSocketServer } = require("./wsHandler");
 const { isValidUUID, isValidPort, isValidDomain } = require("./utils/validators");
 
 // Function to generate VLESS URL
-function generateVlessUrl(uuid, domain, name, pathPrefix = "/work-tunnel-") {
-  const encodedPath = encodeURIComponent(`${pathPrefix}${name}`);
+function generateVlessUrl(uuid, domain, name) {
+  const encodedPath = encodeURIComponent(`/work-tunnel-${name}`);
   return `vless://${uuid}@${domain}:443?encryption=none&security=tls&sni=${domain}&fp=chrome&type=ws&host=${domain}&path=${encodedPath}`;
 }
 
@@ -21,7 +21,6 @@ async function main() {
     const PORT = getEnvVariable("PORT", isValidPort, "3000");
     const TUNNEL_DOMAIN = getEnvVariable("TUNNEL_DOMAIN", isValidDomain);
     const NAME = process.env.NAME || os.hostname();
-    const VLESS_PATH_PREFIX = process.env.VLESS_PATH_PREFIX || "/work-tunnel-";
 
     const server = http.createServer((req, res) => {
       try {
@@ -29,7 +28,7 @@ async function main() {
           res.writeHead(200, { "Content-Type": "text/plain" });
           res.end("Hello world!\n");
         } else if (req.url === `/${UUID}`) {
-          const vlessURL = generateVlessUrl(UUID, TUNNEL_DOMAIN, NAME, VLESS_PATH_PREFIX);
+          const vlessURL = generateVlessUrl(UUID, TUNNEL_DOMAIN, NAME);
           res.writeHead(200, { "Content-Type": "text/plain" });
           res.end(vlessURL + "\n");
         } else {
