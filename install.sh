@@ -129,7 +129,9 @@ fi
 echo "    src/ and package.json downloaded."
 
 # ── 下载 cloudflared ──────────────────────────────────────────
-CF_BIN="/usr/local/bin/cloudflared"
+# 安装到 $DEST/bin/ 而不是 /usr/local/bin/，避免普通用户没有写系统目录的权限
+CF_BIN="$DEST/bin/cloudflared"
+mkdir -p "$DEST/bin"
 
 if [ -f "$CF_BIN" ]; then
   echo "==> cloudflared already exists, skipping download."
