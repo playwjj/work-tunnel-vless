@@ -48,6 +48,13 @@ detect_init() {
 
 INIT_SYS="$(detect_init)"
 
+# ── root 权限检测 ──────────────────────────────────────────────
+# 非 root 用户无法写 /etc/systemd/system 等系统目录（常见于共享/托管环境，
+# 如 DomCloud 等只提供普通用户 SSH 的托管平台）。此时 systemd 场景下改用
+# 用户级服务（systemctl --user），无需任何系统权限。
+IS_ROOT=0
+[ "$(id -u)" = "0" ] && IS_ROOT=1
+
 # ── 依赖自检与安装 ────────────────────────────────────────────
 check_deps() {
   MISSING=""
@@ -258,8 +265,18 @@ EOF
 }
 
 setup_systemd() {
+  if [ "$IS_ROOT" = "1" ]; then
+    UNIT_DIR="/etc/systemd/system"
+    SYSTEMCTL="systemctl"
+  else
+    # 非 root：装到用户级 systemd（无需系统权限）
+    UNIT_DIR="$HOME/.config/systemd/user"
+    SYSTEMCTL="systemctl --user"
+    mkdir -p "$UNIT_DIR"
+  fi
+
   # Node.js 服务
-  cat > "/etc/systemd/system/$SERVICE_NAME.service" << EOF
+  cat > "$UNIT_DIR/$SERVICE_NAME.service" << EOF
 [Unit]
 Description=work-tunnel-vless VLESS tunnel service
 After=network.target
@@ -274,11 +291,11 @@ StandardOutput=journal
 StandardError=journal
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=$([ "$IS_ROOT" = "1" ] && echo multi-user.target || echo default.target)
 EOF
 
   # cloudflared 服务
-  cat > "/etc/systemd/system/cloudflared.service" << EOF
+  cat > "$UNIT_DIR/cloudflared.service" << EOF
 [Unit]
 Description=Cloudflare Tunnel
 After=network.target $SERVICE_NAME.service
@@ -292,18 +309,34 @@ StandardOutput=journal
 StandardError=journal
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=$([ "$IS_ROOT" = "1" ] && echo multi-user.target || echo default.target)
 EOF
 
-  systemctl daemon-reload
-  systemctl enable "$SERVICE_NAME" cloudflared
-  systemctl restart "$SERVICE_NAME"
-  systemctl restart cloudflared
+  $SYSTEMCTL daemon-reload
+  $SYSTEMCTL enable "$SERVICE_NAME" cloudflared
+  $SYSTEMCTL restart "$SERVICE_NAME"
+  $SYSTEMCTL restart cloudflared
+
+  if [ "$IS_ROOT" != "1" ]; then
+    # 让用户级服务在 SSH 断开后继续运行；无 sudo 权限时会静默失败，
+    # 此时需要托管平台本身支持保活（如 DomCloud），或手动联系管理员开启。
+    if command -v loginctl >/dev/null 2>&1; then
+      loginctl enable-linger "$(whoami)" 2>/dev/null || \
+        echo "Note: could not enable lingering (needs root). If services stop after SSH disconnect, ask your host to run: loginctl enable-linger $(whoami)" >&2
+    fi
+  fi
 }
 
-echo "==> Setting up services (init: $INIT_SYS) ..."
+echo "==> Setting up services (init: $INIT_SYS, root: $IS_ROOT) ..."
 case "$INIT_SYS" in
-  openrc)  setup_openrc ;;
+  openrc)
+    if [ "$IS_ROOT" != "1" ]; then
+      echo "Warning: OpenRC service setup requires root, skipping." >&2
+      echo "Please start manually: cd $DEST && node src/server.js"
+    else
+      setup_openrc
+    fi
+    ;;
   systemd) setup_systemd ;;
   *)
     echo "Warning: unknown init system, skipping service setup." >&2
@@ -318,13 +351,19 @@ echo "  Deploy complete!"
 echo "=============================="
 
 if [ "$INIT_SYS" = "systemd" ]; then
+  if [ "$IS_ROOT" = "1" ]; then
+    SC="systemctl"; JC="journalctl"
+  else
+    SC="systemctl --user"; JC="journalctl --user"
+    echo "  (installed as user-level systemd service, no root required)"
+  fi
   echo "  Useful commands:"
-  echo "    systemctl status $SERVICE_NAME     # Node 应用状态"
-  echo "    systemctl status cloudflared        # Cloudflare 隧道状态"
-  echo "    systemctl restart $SERVICE_NAME    # 重启 Node 应用"
-  echo "    systemctl restart cloudflared       # 重启 Cloudflare 隧道"
-  echo "    journalctl -fu $SERVICE_NAME       # Node 应用日志"
-  echo "    journalctl -fu cloudflared          # Cloudflare 隧道日志"
+  echo "    $SC status $SERVICE_NAME     # Node 应用状态"
+  echo "    $SC status cloudflared        # Cloudflare 隧道状态"
+  echo "    $SC restart $SERVICE_NAME    # 重启 Node 应用"
+  echo "    $SC restart cloudflared       # 重启 Cloudflare 隧道"
+  echo "    $JC -fu $SERVICE_NAME       # Node 应用日志"
+  echo "    $JC -fu cloudflared          # Cloudflare 隧道日志"
 else
   echo "  Useful commands:"
   echo "    rc-service $SERVICE_NAME status    # Node 应用状态"
