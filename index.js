@@ -1,12 +1,14 @@
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 
-exec('sh ./start.sh', (error, stdout, stderr) => {
-  if (error) {
-    console.error(`执行错误: ${error}`);
-    return;
-  }
-  console.log(`输出: ${stdout}`);
-  if (stderr) {
-    console.error(`错误输出: ${stderr}`);
-  }
+const child = spawn('sh', ['./start.sh'], { stdio: 'inherit' });
+
+child.on('exit', (code, signal) => {
+  process.exit(code !== null ? code : 1);
 });
+
+const forwardSignal = (signal) => {
+  child.kill(signal);
+};
+
+process.on('SIGTERM', forwardSignal);
+process.on('SIGINT', forwardSignal);
