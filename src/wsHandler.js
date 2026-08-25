@@ -1,6 +1,5 @@
 const { WebSocketServer, createWebSocketStream } = require("ws");
 const net = require("net");
-const { pipeline } = require("stream");
 const { parseHost, createUUIDValidator } = require("./utils/parser");
 const { CONNECTION_CONFIG } = require("./config");
 
@@ -47,26 +46,28 @@ function setupWebSocketServer(server, uuid) {
         const socket = net.connect({ host, port, ...CONNECTION_CONFIG }, () => {
           socket.write(payload);
         });
-        socket.setMaxListeners(5);
 
-        pipeline(wsStream, socket, (err) => {
-          if (err && err.code !== 'ECONNRESET' && err.code !== 'ETIMEDOUT') {
-            console.error("[ERROR] WebSocket -> TCP 传输错误:", err.message);
-          }
+        let closed = false;
+        const cleanup = () => {
+          if (closed) return;
+          closed = true;
+          wsStream.destroy();
           socket.destroy();
-        });
+        };
 
-        pipeline(socket, wsStream, (err) => {
-          if (err && err.code !== 'ECONNRESET' && err.code !== 'ETIMEDOUT') {
-            console.error("[ERROR] TCP -> WebSocket 传输错误:", err.message);
-          }
-          ws.close();
-        });
+        wsStream.pipe(socket);
+        socket.pipe(wsStream);
 
-        socket.on("error", (err) => {
+        socket.once("error", (err) => {
           console.error("[ERROR] TCP 连接错误:", err.message);
-          ws.close();
+          cleanup();
         });
+        wsStream.once("error", (err) => {
+          console.error("[ERROR] WebSocket 传输错误:", err.message);
+          cleanup();
+        });
+        socket.once("close", cleanup);
+        wsStream.once("close", cleanup);
       } catch (err) {
         console.error("[ERROR] WebSocket 消息处理错误:", err.message);
         ws.close();
