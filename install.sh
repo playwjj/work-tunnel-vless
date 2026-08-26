@@ -262,6 +262,25 @@ EOF
   chmod +x "/etc/init.d/cloudflared"
   rc-update add cloudflared default 2>/dev/null || true
   rc-service cloudflared restart
+
+  # 日志轮转兜底：output_log/error_log 不会自动轮转，长期运行会把日志写到
+  # 磁盘写满（尤其是小磁盘的容器/面板环境）。用 crond 的 hourly 周期任务
+  # 兜底截断，避免占满磁盘导致 DNS/服务异常。
+  if [ -d /etc/periodic/hourly ]; then
+    LOG_GUARD="/etc/periodic/hourly/${SERVICE_NAME}-logguard"
+    cat > "$LOG_GUARD" << EOF
+#!/bin/sh
+for f in "/var/log/${SERVICE_NAME}.log" "/var/log/cloudflared.log"; do
+  [ -f "\$f" ] || continue
+  size=\$(wc -c < "\$f" 2>/dev/null || echo 0)
+  if [ "\$size" -gt 5242880 ]; then
+    mv -f "\$f" "\$f.old"
+    : > "\$f"
+  fi
+done
+EOF
+    chmod +x "$LOG_GUARD"
+  fi
 }
 
 setup_systemd() {
@@ -289,6 +308,8 @@ Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
+LogRateLimitIntervalSec=30
+LogRateLimitBurst=200
 
 [Install]
 WantedBy=$([ "$IS_ROOT" = "1" ] && echo multi-user.target || echo default.target)
@@ -307,6 +328,8 @@ Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
+LogRateLimitIntervalSec=30
+LogRateLimitBurst=200
 
 [Install]
 WantedBy=$([ "$IS_ROOT" = "1" ] && echo multi-user.target || echo default.target)
