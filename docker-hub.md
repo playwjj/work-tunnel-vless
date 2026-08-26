@@ -72,6 +72,8 @@ TUNNEL_TRANSPORT_PROTOCOL=cloudflared 传输协议 (如 quic、http2 等)
 docker run -d \
   --name work-tunnel-vless \
   --env-file .env \
+  --log-opt max-size=10m \
+  --log-opt max-file=3 \
   passport888/work-tunnel-vless:latest
 ```
 
@@ -88,6 +90,11 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 ```
 
 然后运行：

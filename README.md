@@ -119,6 +119,8 @@ cp .env.sample .env
 docker run -d \
   --name work-tunnel-vless \
   --env-file .env \
+  --log-opt max-size=10m \
+  --log-opt max-file=3 \
   passport888/work-tunnel-vless:latest
 ```
 
@@ -129,6 +131,8 @@ docker build -t work-tunnel-vless .
 docker run -d \
   --name work-tunnel-vless \
   --env-file .env \
+  --log-opt max-size=10m \
+  --log-opt max-file=3 \
   work-tunnel-vless
 
 # 多架构构建（需要 Docker buildx）
@@ -150,6 +154,11 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 ```
 
 2. 启动服务：
