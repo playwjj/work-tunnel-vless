@@ -1,5 +1,7 @@
 # Work Tunnel VLESS
 
+[English](README_EN.md) | 中文
+
 一个基于 Node.js 的 Docker 化 VLESS 代理服务器，集成 Cloudflare Tunnel，为开发者提供安全、高效的一键式代理解决方案。  
 
 ## 功能特点
