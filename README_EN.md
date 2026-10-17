@@ -7,9 +7,9 @@ A Dockerized VLESS proxy server based on Node.js, integrated with Cloudflare Tun
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
     Client["VLESS client<br/>(v2rayN / Streisand / NekoBox)"] -->|VLESS over WebSocket + TLS| CF["Cloudflare edge network<br/>tunnel.yourdomain.com"]
-    CF -->|Cloudflare Tunnel encrypted tunnel| Box["Docker container"]
+    CF -->|Cloudflare Tunnel encrypted tunnel| Box["Docker container work-tunnel-vless"]
     Box --> Internet["Internet"]
     subgraph Box["Docker container work-tunnel-vless"]
         VLESS["Node.js<br/>VLESS service"]

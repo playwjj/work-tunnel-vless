@@ -7,9 +7,9 @@
 ## 架构
 
 ```mermaid
-flowchart LR
+flowchart TD
     Client["VLESS 客户端<br/>(v2rayN / Streisand / NekoBox)"] -->|VLESS over WebSocket + TLS| CF["Cloudflare 边缘网络<br/>tunnel.yourdomain.com"]
-    CF -->|Cloudflare Tunnel 加密隧道| Box["Docker 容器"]
+    CF -->|Cloudflare Tunnel 加密隧道| Box["Docker 容器 work-tunnel-vless"]
     Box --> Internet["互联网"]
     subgraph Box["Docker 容器 work-tunnel-vless"]
         VLESS["Node.js<br/>VLESS 服务"]
