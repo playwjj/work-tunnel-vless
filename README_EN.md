@@ -4,6 +4,19 @@
 
 A Dockerized VLESS proxy server based on Node.js, integrated with Cloudflare Tunnel — a secure, efficient one-click proxy solution for developers.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    Client["VLESS client<br/>(v2rayN / Streisand / NekoBox)"] -->|VLESS over WebSocket + TLS| CF["Cloudflare edge network<br/>tunnel.yourdomain.com"]
+    CF -->|Cloudflare Tunnel encrypted tunnel| Box["Docker container"]
+    Box --> Internet["Internet"]
+    subgraph Box["Docker container work-tunnel-vless"]
+        VLESS["Node.js<br/>VLESS service"]
+        Cloudflared["cloudflared<br/>tunnel client"]
+    end
+```
+
 ## Features
 
 - VLESS protocol support
@@ -201,3 +214,7 @@ npm start
 ## License
 
 MIT
+
+---
+
+⭐ If this project helps you, please give it a Star!

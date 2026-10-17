@@ -4,6 +4,19 @@
 
 一个基于 Node.js 的 Docker 化 VLESS 代理服务器，集成 Cloudflare Tunnel，为开发者提供安全、高效的一键式代理解决方案。  
 
+## 架构
+
+```mermaid
+flowchart LR
+    Client["VLESS 客户端<br/>(v2rayN / Streisand / NekoBox)"] -->|VLESS over WebSocket + TLS| CF["Cloudflare 边缘网络<br/>tunnel.yourdomain.com"]
+    CF -->|Cloudflare Tunnel 加密隧道| Box["Docker 容器"]
+    Box --> Internet["互联网"]
+    subgraph Box["Docker 容器 work-tunnel-vless"]
+        VLESS["Node.js<br/>VLESS 服务"]
+        Cloudflared["cloudflared<br/>隧道客户端"]
+    end
+```
+
 ## 功能特点
 
 - 支持 VLESS 协议
@@ -201,3 +214,7 @@ npm start
 ## 许可证
 
 MIT 
+
+---
+
+⭐ 如果这个项目对你有帮助，欢迎点个 Star！
