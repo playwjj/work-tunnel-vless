@@ -37,7 +37,7 @@ flowchart TD
 
 ## 系统要求
 
-- Node.js >= 14
+- Node.js >= 18（Docker 镜像使用 Node.js 22）
 - npm
 
 ## Cloudflare Zero Trust Tunnel 配置
@@ -129,8 +129,10 @@ cp .env.sample .env
 
 ### 使用 Docker 运行
 
-1. 直接使用 Docker Hub 镜像：
+1. 直接使用预构建镜像（Docker Hub 与 GitHub Container Registry 内容相同，任选其一）：
 ```bash
+# Docker Hub: passport888/work-tunnel-vless:latest
+# GHCR:       ghcr.io/playwjj/work-tunnel-vless:latest
 docker run -d \
   --name work-tunnel-vless \
   --env-file .env \
@@ -161,7 +163,6 @@ docker buildx build \
 
 1. 创建 `docker-compose.yml` 文件：
 ```yaml
-version: '3'
 services:
   work-tunnel-vless:
     image: passport888/work-tunnel-vless:latest
@@ -178,7 +179,7 @@ services:
 
 2. 启动服务：
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ## 配置说明
@@ -204,6 +205,14 @@ npm start
 
 2. 访问以下地址获取 VLESS 链接：
 - VLESS 链接：`https://[TUNNEL_DOMAIN]/[UUID]`
+
+## 测试
+
+```bash
+npm test
+```
+
+推送到 `main` 或提交 PR 时，GitHub Actions 会在 Node.js 18/20/22 上运行测试并用 shellcheck 检查脚本，全部通过后才构建并推送镜像。
 
 ## 注意事项
 

@@ -4,7 +4,8 @@
   "description": "Node.js WebSocket Tunnel Server with VLESS Protocol",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "node --test"
   },
   "author": "playwjj",
   "license": "MIT",
@@ -18,6 +19,6 @@
     "ws": "^8.14.2"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=18.0.0"
   }
 }
