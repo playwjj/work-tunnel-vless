@@ -4,7 +4,7 @@
 #
 # 功能：
 #   1. 自动安装依赖（Alpine 用 apk，Ubuntu/Debian 用 apt）
-#   2. 从 GitHub 下载 src/ 目录和 package.json
+#   2. 从 GitHub 下载 src/ 目录、package.json 和 run-cloudflared.sh
 #   3. 下载 cloudflared（自动识别 CPU 架构）
 #   4. 交互式创建 .env 配置文件（已存在则跳过）
 #   5. 执行 npm install 安装依赖
@@ -106,6 +106,7 @@ download_with_git() {
   mkdir -p "$DEST/src"
   cp -r "$TMP_DIR/repo/src/." "$DEST/src/"
   cp "$TMP_DIR/repo/package.json" "$DEST/package.json"
+  cp "$TMP_DIR/repo/run-cloudflared.sh" "$DEST/run-cloudflared.sh"
 }
 
 download_with_curl() {
@@ -120,8 +121,10 @@ download_with_curl() {
     curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/$file" -o "$DEST/$file"
   done
 
-  echo "  package.json"
-  curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/package.json" -o "$DEST/package.json"
+  for f in package.json run-cloudflared.sh; do
+    echo "  $f"
+    curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/$f" -o "$DEST/$f"
+  done
 }
 
 echo "==> Downloading files from $REPO ..."
@@ -133,7 +136,8 @@ else
   echo "Error: git or curl is required." >&2
   exit 1
 fi
-echo "    src/ and package.json downloaded."
+chmod +x "$DEST/run-cloudflared.sh"
+echo "    src/, package.json and run-cloudflared.sh downloaded."
 
 # ── 下载 cloudflared ──────────────────────────────────────────
 # 安装到 $DEST/bin/ 而不是 /usr/local/bin/，避免普通用户没有写系统目录的权限
@@ -205,7 +209,7 @@ fi
 # ── npm install ───────────────────────────────────────────────
 echo "==> Running npm install ..."
 cd "$DEST"
-npm install
+npm install --omit=dev
 
 # ── 服务注册 ──────────────────────────────────────────────────
 SERVICE_NAME="$(basename "$DEST")"
@@ -234,21 +238,17 @@ EOF
   rc-update add "$SERVICE_NAME" default 2>/dev/null || true
   rc-service "$SERVICE_NAME" restart
 
-  # cloudflared 启动脚本（从 .env 读取 TOKEN）
-  cat > "$DEST/start-cloudflared.sh" << EOF
-#!/bin/sh
-. "$DEST/.env"
-exec $CF_BIN tunnel --no-autoupdate run --token "\$TUNNEL_TOKEN"
-EOF
-  chmod +x "$DEST/start-cloudflared.sh"
+  # 旧版本生成的启动脚本，已由 run-cloudflared.sh 取代
+  rm -f "$DEST/start-cloudflared.sh"
 
-  # cloudflared 服务
+  # cloudflared 服务（run-cloudflared.sh 自行读取同目录的 .env）
   cat > "/etc/init.d/cloudflared" << EOF
 #!/sbin/openrc-run
 
 name="cloudflared"
 description="Cloudflare Tunnel"
-command="$DEST/start-cloudflared.sh"
+command="$DEST/run-cloudflared.sh"
+command_args="$CF_BIN"
 command_background=true
 pidfile="/run/\${RC_SVCNAME}.pid"
 output_log="/var/log/\${RC_SVCNAME}.log"
@@ -323,7 +323,7 @@ After=network.target $SERVICE_NAME.service
 
 [Service]
 EnvironmentFile=$DEST/.env
-ExecStart=$CF_BIN tunnel --no-autoupdate run --token \$TUNNEL_TOKEN
+ExecStart=$DEST/run-cloudflared.sh $CF_BIN
 Restart=always
 RestartSec=5
 StandardOutput=journal

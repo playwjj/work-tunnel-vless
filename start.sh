@@ -1,18 +1,7 @@
 #!/bin/sh
 
-# 构建 cloudflared 参数
-CLOUDFLARED_ARGS="--no-autoupdate"
-
-# 如果设置了强制 IPv6，添加参数
-if [ "$TUNNEL_FORCE_IP_VERSION" = "6" ]; then
-    CLOUDFLARED_ARGS="$CLOUDFLARED_ARGS --edge-ip-version 6"
-    echo "Using IPv6 for cloudflared"
-fi
-
-# 如果设置了传输协议
-if [ -n "$TUNNEL_TRANSPORT_PROTOCOL" ]; then
-    CLOUDFLARED_ARGS="$CLOUDFLARED_ARGS --protocol $TUNNEL_TRANSPORT_PROTOCOL"
-fi
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
 
 NODE_PID=""
 CF_PID=""
@@ -30,8 +19,7 @@ node src/server.js &
 NODE_PID=$!
 
 if [ -n "$TUNNEL_TOKEN" ]; then
-    echo "Starting cloudflared with args: $CLOUDFLARED_ARGS"
-    cloudflared tunnel $CLOUDFLARED_ARGS run --token "$TUNNEL_TOKEN" &
+    ./run-cloudflared.sh &
     CF_PID=$!
 else
     echo "Warning: TUNNEL_TOKEN is not set, skipping cloudflared"

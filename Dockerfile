@@ -22,7 +22,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY . .
-RUN chmod +x /app/start.sh
+RUN chmod +x /app/start.sh /app/run-cloudflared.sh
 
 ENV NODE_ENV=production
 

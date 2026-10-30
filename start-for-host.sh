@@ -30,15 +30,11 @@ fi
 
 # 面板在执行 index.js 前已经跑过 npm install，这里无需重复
 
-CLOUDFLARED_ARGS="--no-autoupdate"
-[ "$TUNNEL_FORCE_IP_VERSION" = "6" ] && CLOUDFLARED_ARGS="$CLOUDFLARED_ARGS --edge-ip-version 6"
-[ -n "$TUNNEL_TRANSPORT_PROTOCOL" ] && CLOUDFLARED_ARGS="$CLOUDFLARED_ARGS --protocol $TUNNEL_TRANSPORT_PROTOCOL"
-
 if [ -z "$TUNNEL_TOKEN" ]; then
     echo "警告: 未设置 TUNNEL_TOKEN，跳过 cloudflared"
 else
     echo "启动 cloudflared tunnel..."
-    "$CLOUDFLARED_BIN" tunnel $CLOUDFLARED_ARGS run --token "$TUNNEL_TOKEN" >/dev/null 2>&1 &
+    sh ./run-cloudflared.sh "$CLOUDFLARED_BIN" >/dev/null 2>&1 &
 fi
 
 # 必须前台运行，index.js 里的 exec 才能保持容器存活
