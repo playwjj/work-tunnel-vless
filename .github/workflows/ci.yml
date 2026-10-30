@@ -178,5 +178,6 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           repository: ${{ secrets.DOCKER_USERNAME }}/work-tunnel-vless
-          short-description: ${{ github.event.repository.description }}
+          # Docker Hub 简短描述上限 100 字节（一个汉字占 3 字节），超出会被截断
+          short-description: "Node.js VLESS 代理，集成 Cloudflare Tunnel，支持 amd64/arm64"
           readme-filepath: ./docker-hub.md
