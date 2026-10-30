@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [ "main" ]
+    # 推送 v* 标签即发布正式版本（标签推送不受 paths-ignore 影响）
+    tags: [ "v*" ]
     paths-ignore:
       - "**.md"
       - "install.sh"
@@ -63,9 +65,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get package version
-        id: pkg-version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+      # 防止标签与 package.json 版本不一致（应使用 npm version 打标签）
+      - name: Check tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "${GITHUB_REF_NAME#v}" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -98,9 +106,12 @@ jobs:
           images: |
             ${{ env.DOCKERHUB_IMAGE }}
             ${{ env.GHCR_IMAGE }}
+          # 标签发布：1.2.8、1.2、latest（latest 由 semver 自动附加）
+          # main 推送：edge；两种情况都带 sha-xxxxxxx
           tags: |
-            type=raw,value=${{ steps.pkg-version.outputs.version }}
-            type=raw,value=latest
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=edge,branch=main
             type=sha,format=short
 
       - name: Build and push Docker image
@@ -113,3 +124,16 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  release:
+    needs: build-and-push
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true

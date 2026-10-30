@@ -214,6 +214,17 @@ npm test
 
 On every push to `main` and every PR, GitHub Actions runs the tests on Node.js 18/20/22 and lints the shell scripts with shellcheck; the image is built and pushed only when all checks pass.
 
+## Releasing
+
+Versions are driven by git tags; there is no need to edit `package.json` by hand:
+
+```bash
+npm version patch          # or minor / major: bumps the version, commits and creates a v* tag
+git push --follow-tags
+```
+
+Pushing the tag makes GitHub Actions build and push the `x.y.z`, `x.y` and `latest` image tags and create a GitHub Release. Regular pushes to `main` only update the `edge` tag.
+
 ## Notes
 
 - Make sure the firewall allows the relevant ports

@@ -214,6 +214,17 @@ npm test
 
 推送到 `main` 或提交 PR 时，GitHub Actions 会在 Node.js 18/20/22 上运行测试并用 shellcheck 检查脚本，全部通过后才构建并推送镜像。
 
+## 发布新版本
+
+版本号由 git 标签驱动，不需要手动修改 `package.json`：
+
+```bash
+npm version patch          # 或 minor / major，自动更新版本号、提交并打 v* 标签
+git push --follow-tags
+```
+
+推送标签后 GitHub Actions 会构建并推送 `x.y.z`、`x.y`、`latest` 镜像标签，并创建 GitHub Release。日常推送到 `main` 只会更新 `edge` 标签。
+
 ## 注意事项
 
 - 确保服务器防火墙已开放相应端口
