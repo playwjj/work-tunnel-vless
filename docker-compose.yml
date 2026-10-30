@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   work-tunnel-vless:
     image: passport888/work-tunnel-vless:latest
