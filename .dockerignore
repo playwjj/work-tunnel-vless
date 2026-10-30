@@ -48,3 +48,4 @@ docker-compose*.yml
 install.sh
 start-for-host.sh
 eslint.config.js
+scripts/

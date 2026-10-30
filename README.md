@@ -215,6 +215,8 @@ npm run lint   # ESLint 检查
 
 推送到 `main` 或提交 PR 时，GitHub Actions 会在 Node.js 20/22/24 上运行测试，并执行 ESLint 和 shellcheck 检查，全部通过后才构建并推送镜像。
 
+推送镜像前还会启动容器做冒烟测试；若配置了仓库 secret `TEST_TUNNEL_TOKEN` 和变量 `TEST_TUNNEL_DOMAIN`（须为独立的测试 Tunnel，不要用正式环境的），还会经真实 Cloudflare Tunnel 验证 HTTP 和 VLESS 代理转发。
+
 ## 发布新版本
 
 版本号由 git 标签驱动，不需要手动修改 `package.json`：

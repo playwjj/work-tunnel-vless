@@ -215,6 +215,8 @@ npm run lint   # ESLint
 
 On every push to `main` and every PR, GitHub Actions runs the tests on Node.js 20/22/24 and runs ESLint and shellcheck; the image is built and pushed only when all checks pass.
 
+Before pushing, the image is also started for a smoke test; if the repository secret `TEST_TUNNEL_TOKEN` and variable `TEST_TUNNEL_DOMAIN` are configured (use a dedicated test tunnel, never the production one), HTTP and VLESS proxying are verified end to end through a real Cloudflare Tunnel.
+
 ## Releasing
 
 Versions are driven by git tags; there is no need to edit `package.json` by hand:

@@ -132,6 +132,43 @@ jobs:
           docker rm -f smoke
           [ "$status" = healthy ] && [ "$uid" != 0 ]
 
+      # 用独立的测试 Tunnel 走真实链路：Cloudflare 边缘 → cloudflared → Node → VLESS 转发。
+      # 需要仓库 secret TEST_TUNNEL_TOKEN 与变量 TEST_TUNNEL_DOMAIN；未配置或 PR（拿不到 secret）时跳过
+      - name: Tunnel end-to-end test
+        if: github.event_name != 'pull_request'
+        env:
+          TEST_TUNNEL_TOKEN: ${{ secrets.TEST_TUNNEL_TOKEN }}
+          TEST_TUNNEL_DOMAIN: ${{ vars.TEST_TUNNEL_DOMAIN }}
+        run: |
+          if [ -z "$TEST_TUNNEL_TOKEN" ] || [ -z "$TEST_TUNNEL_DOMAIN" ]; then
+            echo "::warning::TEST_TUNNEL_TOKEN / TEST_TUNNEL_DOMAIN not configured, skipping tunnel e2e test"
+            exit 0
+          fi
+          # 由 Token 派生固定 UUID：不公开，且同一提交的 main 与标签两次运行同时接入测试隧道时行为一致
+          h="$(printf '%s' "$TEST_TUNNEL_TOKEN" | sha256sum | cut -c1-32)"
+          uuid="${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"
+          echo "::add-mask::$uuid"
+          docker run -d --name e2e \
+            -e UUID="$uuid" \
+            -e TUNNEL_DOMAIN="$TEST_TUNNEL_DOMAIN" \
+            -e PORT=3000 \
+            -e TUNNEL_TOKEN="$TEST_TUNNEL_TOKEN" \
+            work-tunnel-vless:smoke
+          ok=false
+          for _ in $(seq 1 30); do
+            if docker logs e2e 2>&1 | grep -q "Registered tunnel connection"; then ok=true; break; fi
+            sleep 2
+          done
+          if [ "$ok" = true ]; then
+            npm ci --omit=dev
+            node scripts/e2e-tunnel.js "$TEST_TUNNEL_DOMAIN" "$uuid" || ok=false
+          else
+            echo "::error::cloudflared did not register a tunnel connection"
+          fi
+          docker logs e2e 2>&1 | tail -30
+          docker rm -f e2e
+          [ "$ok" = true ]
+
       # PR（尤其是 fork 提交的）拿不到 secrets，只构建不推送，因此跳过登录
       - name: Log in to Docker Hub
         if: github.event_name != 'pull_request'
