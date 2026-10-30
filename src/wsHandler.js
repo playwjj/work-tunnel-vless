@@ -4,18 +4,37 @@ const { parseHost, createUUIDValidator } = require("./utils/parser");
 const { CONNECTION_CONFIG } = require("./config");
 
 const SUCCESS_RESPONSE = Buffer.from([0x00, 0x00]);
+const HEARTBEAT_INTERVAL = 30000;
 
-function setupWebSocketServer(server, uuid) {
+function setupWebSocketServer(server, uuid, { heartbeatInterval = HEARTBEAT_INTERVAL } = {}) {
   const wss = new WebSocketServer({ server });
   const validateUUID = createUUIDValidator(uuid);
 
+  // 定期 ping，客户端断网后收不到 close，靠心跳发现并清理死连接
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (!ws.isAlive) {
+        ws.terminate();
+        continue;
+      }
+      ws.isAlive = false;
+      ws.ping();
+    }
+  }, heartbeatInterval);
+  wss.on("close", () => clearInterval(heartbeat));
+
   wss.on("connection", (ws) => {
+    ws.isAlive = true;
+    ws.on("pong", () => {
+      ws.isAlive = true;
+    });
+
     let connectionTimeout = setTimeout(() => {
       console.warn("[WARN] 连接超时");
       ws.close();
     }, 30000);
 
-    ws.once("message", async (msg) => {
+    ws.once("message", (msg) => {
       clearTimeout(connectionTimeout);
 
       try {
@@ -87,6 +106,8 @@ function setupWebSocketServer(server, uuid) {
       ws.close();
     });
   });
+
+  return wss;
 }
 
 module.exports = { setupWebSocketServer };
