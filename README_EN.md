@@ -104,7 +104,14 @@ systemctl restart cloudflared
 journalctl -fu work-tunnel-vless
 ```
 
-> If a `.env` file already exists the script skips creating it — re-running updates the code. To change config, edit `.env` manually and restart the service.
+> If a `.env` file already exists the script skips creating it — re-running updates to the latest release. To change config, edit `.env` manually and restart the service.
+
+The script installs the latest release by default (same as the Docker `latest` image). Use `VERSION` to choose a version (v1.2.9 or later):
+
+```bash
+VERSION=v1.2.10 sh /tmp/s.sh   # install a specific version
+VERSION=main sh /tmp/s.sh      # install the development version from main
+```
 
 ---
 

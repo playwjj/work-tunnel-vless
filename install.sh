@@ -4,7 +4,7 @@
 #
 # 功能：
 #   1. 自动安装依赖（Alpine 用 apk，Ubuntu/Debian 用 apt）
-#   2. 从 GitHub 下载 src/ 目录、package.json 和 run-cloudflared.sh
+#   2. 从 GitHub 下载最新正式版本的 src/ 目录、package.json 和 run-cloudflared.sh
 #   3. 下载 cloudflared（自动识别 CPU 架构）
 #   4. 交互式创建 .env 配置文件（已存在则跳过）
 #   5. 执行 npm install 安装依赖
@@ -25,6 +25,10 @@
 #
 #   方式三：本地运行
 #     sh install.sh
+#
+#   默认安装最新正式版本，可通过 VERSION 环境变量指定：
+#     VERSION=v1.2.9 sh /tmp/s.sh   # 安装指定版本
+#     VERSION=main sh /tmp/s.sh     # 安装 main 分支开发版
 #
 # 环境变量说明（运行时交互输入）：
 #   UUID          VLESS 用户 UUID，必填
@@ -82,7 +86,6 @@ check_deps() {
 check_deps
 
 REPO="playwjj/work-tunnel-vless"
-BRANCH="main"
 TMP_DIR="$(mktemp -d)"
 
 cleanup() { rm -rf "$TMP_DIR"; }
@@ -100,34 +103,54 @@ else
   echo "==> Created directory: $DEST"
 fi
 
+# ── 确定安装版本 ──────────────────────────────────────────────
+# 默认取最新正式版本（GitHub Release），与 Docker 镜像的 latest 保持一致
+resolve_latest_version() {
+  if command -v curl >/dev/null 2>&1; then
+    # releases/latest 会重定向到 .../releases/tag/vX.Y.Z，无需调用有频率限制的 API
+    curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest" \
+      | sed -n 's|.*/releases/tag/||p'
+  else
+    git ls-remote --tags --refs --sort=-v:refname "https://github.com/$REPO.git" 'v*' \
+      | head -n 1 | sed 's|.*refs/tags/||'
+  fi
+}
+
+if [ -z "$VERSION" ]; then
+  VERSION="$(resolve_latest_version)"
+  if [ -z "$VERSION" ]; then
+    echo "Error: could not determine the latest release version." >&2
+    echo "Set it explicitly, e.g. VERSION=v1.2.10 sh $0" >&2
+    exit 1
+  fi
+fi
+
 # ── 下载项目文件 ──────────────────────────────────────────────
+version_not_found() {
+  echo "Error: version $VERSION not found in $REPO." >&2
+  echo "See https://github.com/$REPO/releases for available versions." >&2
+  exit 1
+}
+
 download_with_git() {
-  git clone -q --depth 1 "https://github.com/$REPO.git" "$TMP_DIR/repo"
-  mkdir -p "$DEST/src"
-  cp -r "$TMP_DIR/repo/src/." "$DEST/src/"
-  cp "$TMP_DIR/repo/package.json" "$DEST/package.json"
-  cp "$TMP_DIR/repo/run-cloudflared.sh" "$DEST/run-cloudflared.sh"
+  git clone -q --depth 1 --branch "$VERSION" "https://github.com/$REPO.git" "$TMP_DIR/repo" 2>/dev/null \
+    || version_not_found
 }
 
 download_with_curl() {
-  API="https://api.github.com/repos/$REPO/git/trees/$BRANCH?recursive=1"
-  FILES=$(curl -fsSL "$API" | grep -o '"path":"src/[^"]*"' | sed 's/"path":"//;s/"//g')
-
-  echo "$FILES" | while IFS= read -r file; do
-    [ -z "$file" ] && continue
-    rel="${file#src/}"
-    mkdir -p "$DEST/src/$(dirname "$rel")"
-    echo "  $file"
-    curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/$file" -o "$DEST/$file"
-  done
-
-  for f in package.json run-cloudflared.sh; do
-    echo "  $f"
-    curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/$f" -o "$DEST/$f"
-  done
+  case "$VERSION" in
+    v*) REF="tags/$VERSION" ;;
+    *)  REF="heads/$VERSION" ;;
+  esac
+  curl -fsSL "https://github.com/$REPO/archive/refs/$REF.tar.gz" -o "$TMP_DIR/source.tar.gz" \
+    || version_not_found
+  mkdir -p "$TMP_DIR/archive"
+  tar -xzf "$TMP_DIR/source.tar.gz" -C "$TMP_DIR/archive"
+  # 源码包内只有一个顶层目录（如 work-tunnel-vless-1.2.10）
+  mv "$TMP_DIR/archive/"* "$TMP_DIR/repo"
 }
 
-echo "==> Downloading files from $REPO ..."
+echo "==> Downloading $REPO $VERSION ..."
 if command -v git >/dev/null 2>&1; then
   download_with_git
 elif command -v curl >/dev/null 2>&1; then
@@ -136,8 +159,19 @@ else
   echo "Error: git or curl is required." >&2
   exit 1
 fi
+
+# run-cloudflared.sh 自 v1.2.9 起提供，本脚本注册的服务依赖它
+if [ ! -f "$TMP_DIR/repo/run-cloudflared.sh" ]; then
+  echo "Error: $VERSION is too old for this installer, please use v1.2.9 or later." >&2
+  exit 1
+fi
+
+mkdir -p "$DEST/src"
+cp -r "$TMP_DIR/repo/src/." "$DEST/src/"
+cp "$TMP_DIR/repo/package.json" "$DEST/package.json"
+cp "$TMP_DIR/repo/run-cloudflared.sh" "$DEST/run-cloudflared.sh"
 chmod +x "$DEST/run-cloudflared.sh"
-echo "    src/, package.json and run-cloudflared.sh downloaded."
+echo "    src/, package.json and run-cloudflared.sh ($VERSION) installed."
 
 # ── 下载 cloudflared ──────────────────────────────────────────
 # 安装到 $DEST/bin/ 而不是 /usr/local/bin/，避免普通用户没有写系统目录的权限

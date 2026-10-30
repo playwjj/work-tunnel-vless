@@ -104,7 +104,14 @@ systemctl restart cloudflared
 journalctl -fu work-tunnel-vless
 ```
 
-> `.env` 文件已存在时脚本会跳过创建，重复执行可用于更新代码。如需修改配置，手动编辑 `.env` 后重启服务即可。
+> `.env` 文件已存在时脚本会跳过创建，重复执行可用于更新到最新版本。如需修改配置，手动编辑 `.env` 后重启服务即可。
+
+脚本默认安装最新正式版本（与 Docker 镜像 `latest` 一致），可通过 `VERSION` 指定版本（支持 v1.2.9 及以上）：
+
+```bash
+VERSION=v1.2.10 sh /tmp/s.sh   # 安装指定版本
+VERSION=main sh /tmp/s.sh      # 安装 main 分支开发版
+```
 
 ---
 
