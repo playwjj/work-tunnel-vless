@@ -195,12 +195,12 @@ jobs:
             ${{ env.DOCKERHUB_IMAGE }}
             ${{ env.GHCR_IMAGE }}
           # 标签发布：1.2.8、1.2、latest（latest 由 semver 自动附加）
-          # main 推送：edge；两种情况都带 sha-xxxxxxx
+          # main 推送：edge
+          # 不打 sha-xxxxxxx 标签以免越积越多，对应提交可从镜像的 org.opencontainers.image.revision 标签查到
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=edge,branch=main
-            type=sha,format=short
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
