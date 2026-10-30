@@ -24,8 +24,10 @@ if [ ! -x "$CLOUDFLARED_BIN" ]; then
         armv7l|armv6l) CF_ARCH="arm" ;;
         *) echo "不支持的架构: $ARCH"; exit 1 ;;
     esac
-    curl -sL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CF_ARCH}" -o "$CLOUDFLARED_BIN"
-    chmod +x "$CLOUDFLARED_BIN"
+    # 先下载到临时文件，成功后再改名：下载失败时不会留下损坏的可执行文件，下次启动会重试
+    curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CF_ARCH}" -o "$CLOUDFLARED_BIN.tmp"
+    chmod +x "$CLOUDFLARED_BIN.tmp"
+    mv -f "$CLOUDFLARED_BIN.tmp" "$CLOUDFLARED_BIN"
 fi
 
 # 面板在执行 index.js 前已经跑过 npm install，这里无需重复
