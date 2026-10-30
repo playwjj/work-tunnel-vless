@@ -186,7 +186,7 @@ docker compose up -d
 
 Required environment variables:
 - `UUID`: VLESS protocol UUID
-- `PORT`: server listen port
+- `PORT`: server listen port (the Docker container runs as a non-root user, so use a port above 1024)
 - `TUNNEL_DOMAIN`: server domain
 - `TUNNEL_TOKEN`: Cloudflare Tunnel auth token
 

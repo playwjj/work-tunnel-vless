@@ -104,6 +104,34 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      # 先构建本机架构镜像并实际运行，确认容器能启动、健康检查通过且以非 root 运行
+      - name: Build image for smoke test
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: work-tunnel-vless:smoke
+          cache-from: type=gha
+
+      - name: Smoke test container
+        run: |
+          docker run -d --name smoke --health-interval=2s \
+            -e UUID=4b1b6efa-1f0d-49ae-b66f-2ef036c26138 \
+            -e TUNNEL_DOMAIN=tunnel.example.com \
+            -e PORT=3000 \
+            work-tunnel-vless:smoke
+          status=starting
+          for _ in $(seq 1 30); do
+            status="$(docker inspect -f '{{.State.Health.Status}}' smoke)"
+            [ "$status" = healthy ] && break
+            sleep 2
+          done
+          docker logs smoke
+          uid="$(docker exec smoke id -u)"
+          echo "health=$status uid=$uid"
+          docker rm -f smoke
+          [ "$status" = healthy ] && [ "$uid" != 0 ]
+
       # PR（尤其是 fork 提交的）拿不到 secrets，只构建不推送，因此跳过登录
       - name: Log in to Docker Hub
         if: github.event_name != 'pull_request'

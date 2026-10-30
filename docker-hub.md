@@ -54,7 +54,7 @@
 
 ```dotenv
 UUID=你的 UUID
-PORT=服务监听端口 (例如: 8080)
+PORT=服务监听端口 (例如: 8080；容器以非 root 用户运行，需大于 1024)
 TUNNEL_DOMAIN=你的域名 (例如: tunnel.yourdomain.com)
 TUNNEL_TOKEN=你的 Cloudflare Tunnel Token
 ```

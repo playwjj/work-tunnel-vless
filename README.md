@@ -186,7 +186,7 @@ docker compose up -d
 
 必需的环境变量：
 - `UUID`: VLESS 协议的 UUID
-- `PORT`: 服务器监听端口
+- `PORT`: 服务器监听端口（Docker 容器以非 root 用户运行，需使用 1024 以上的端口）
 - `TUNNEL_DOMAIN`: 服务器域名
 - `TUNNEL_TOKEN`: Cloudflare Tunnel 的认证令牌
 

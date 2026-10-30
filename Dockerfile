@@ -26,4 +26,11 @@ RUN chmod +x /app/start.sh /app/run-cloudflared.sh
 
 ENV NODE_ENV=production
 
+# 以非 root 用户运行（node 镜像自带 node 用户），服务端口高于 1024 无需特权
+USER node
+
+# PORT 在运行时由环境变量注入，shell 形式才能展开
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -q -O /dev/null "http://127.0.0.1:${PORT:-3000}/" || exit 1
+
 CMD ["/app/start.sh"]
