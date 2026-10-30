@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "lint": "eslint ."
   },
   "author": "playwjj",
   "license": "MIT",
@@ -16,9 +17,14 @@
   "private": false,
   "dependencies": {
     "dotenv": "^16.5.0",
-    "ws": "^8.14.2"
+    "ws": "^8.22.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "globals": "^17.13.0"
   }
 }

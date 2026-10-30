@@ -8,21 +8,22 @@ function createUUIDValidator(uuid) {
 }
 
 function parseHost(msg, startIndex) {
-  let ATYP = msg[startIndex];
-  let host = null;
-  let endIndex = startIndex;
+  const ATYP = msg[startIndex];
+  let host;
+  let endIndex;
 
   switch (ATYP) {
     case 1: // IPv4
       host = msg.subarray(startIndex + 1, startIndex + 5).join(".");
       endIndex = startIndex + 5;
       break;
-    case 2: // Domain
+    case 2: { // Domain
       const domainLength = msg[startIndex + 1];
       host = textDecoder.decode(msg.subarray(startIndex + 2, startIndex + 2 + domainLength));
       endIndex = startIndex + 2 + domainLength;
       break;
-    case 3: // IPv6
+    }
+    case 3: { // IPv6
       const ipv6Bytes = msg.subarray(startIndex + 1, startIndex + 17);
       host = Array.from(ipv6Bytes)
         .map((byte, i) => {
@@ -36,6 +37,7 @@ function parseHost(msg, startIndex) {
         .join(":");
       endIndex = startIndex + 17;
       break;
+    }
     default:
       console.error("[ERROR] 无效的地址类型");
       return { host: null, endIndex: startIndex };

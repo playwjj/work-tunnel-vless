@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 
 const child = spawn('sh', ['./start.sh'], { stdio: 'inherit' });
 
-child.on('exit', (code, signal) => {
+child.on('exit', (code) => {
   process.exit(code !== null ? code : 1);
 });
 

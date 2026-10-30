@@ -1,5 +1,3 @@
-const os = require("os");
-
 const DEFAULT_MAX_MEMORY_USAGE = 512 * 1024 * 1024; // 512MB
 
 function monitorMemoryUsage(interval = 60000) {

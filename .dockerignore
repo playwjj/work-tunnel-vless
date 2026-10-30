@@ -47,3 +47,4 @@ docker-compose*.yml
 # 非容器运行所需的脚本
 install.sh
 start-for-host.sh
+eslint.config.js
