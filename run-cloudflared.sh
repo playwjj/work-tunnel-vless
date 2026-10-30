@@ -21,6 +21,7 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     _token="$TUNNEL_TOKEN"
     _ip_version="$TUNNEL_FORCE_IP_VERSION"
     _protocol="$TUNNEL_TRANSPORT_PROTOCOL"
+    # shellcheck source=/dev/null
     . "$SCRIPT_DIR/.env"
     TUNNEL_TOKEN="${_token:-$TUNNEL_TOKEN}"
     TUNNEL_FORCE_IP_VERSION="${_ip_version:-$TUNNEL_FORCE_IP_VERSION}"
