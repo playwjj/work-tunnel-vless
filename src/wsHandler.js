@@ -19,7 +19,7 @@ function setupWebSocketServer(server, uuid) {
       clearTimeout(connectionTimeout);
 
       try {
-        const id = msg.slice(1, 17);
+        const id = msg.subarray(1, 17);
         if (!validateUUID(id)) {
           console.warn("[WARN] 无效的 UUID 连接");
           ws.close();
@@ -38,14 +38,18 @@ function setupWebSocketServer(server, uuid) {
         }
         i = endIndex;
 
-        const payload = msg.slice(i);
+        const payload = msg.subarray(i);
 
         ws.send(SUCCESS_RESPONSE);
         const wsStream = createWebSocketStream(ws);
 
-        const socket = net.connect({ host, port, ...CONNECTION_CONFIG }, () => {
-          socket.write(payload);
-        });
+        const socket = net.connect({ host, port, ...CONNECTION_CONFIG });
+        // 首包必须先于后续 WebSocket 数据写入，连接建立前写入会按顺序缓冲
+        if (payload.length) socket.write(payload);
+
+        // timeout 仅作为建连超时，连上后取消，避免空闲长连接被误判
+        socket.once("connect", () => socket.setTimeout(0));
+        socket.once("timeout", () => socket.destroy(new Error(`连接 ${host}:${port} 超时`)));
 
         let closed = false;
         const cleanup = () => {

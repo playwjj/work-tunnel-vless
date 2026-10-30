@@ -14,16 +14,16 @@ function parseHost(msg, startIndex) {
 
   switch (ATYP) {
     case 1: // IPv4
-      host = msg.slice(startIndex + 1, startIndex + 5).join(".");
+      host = msg.subarray(startIndex + 1, startIndex + 5).join(".");
       endIndex = startIndex + 5;
       break;
     case 2: // Domain
       const domainLength = msg[startIndex + 1];
-      host = textDecoder.decode(msg.slice(startIndex + 2, startIndex + 2 + domainLength));
+      host = textDecoder.decode(msg.subarray(startIndex + 2, startIndex + 2 + domainLength));
       endIndex = startIndex + 2 + domainLength;
       break;
     case 3: // IPv6
-      const ipv6Bytes = msg.slice(startIndex + 1, startIndex + 17);
+      const ipv6Bytes = msg.subarray(startIndex + 1, startIndex + 17);
       host = Array.from(ipv6Bytes)
         .map((byte, i) => {
           if (i % 2 === 0) {
