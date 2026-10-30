@@ -37,7 +37,7 @@ flowchart TD
 
 ## Requirements
 
-- Node.js >= 14
+- Node.js >= 18 (the Docker image uses Node.js 22)
 - npm
 
 ## Cloudflare Zero Trust Tunnel Setup
@@ -129,8 +129,10 @@ Then edit `.env` with your values.
 
 ### Run with Docker
 
-1. Use the Docker Hub image directly:
+1. Use a prebuilt image (Docker Hub and GitHub Container Registry are identical, pick either):
 ```bash
+# Docker Hub: passport888/work-tunnel-vless:latest
+# GHCR:       ghcr.io/playwjj/work-tunnel-vless:latest
 docker run -d \
   --name work-tunnel-vless \
   --env-file .env \
@@ -161,7 +163,6 @@ docker buildx build \
 
 1. Create `docker-compose.yml`:
 ```yaml
-version: '3'
 services:
   work-tunnel-vless:
     image: passport888/work-tunnel-vless:latest
@@ -178,7 +179,7 @@ services:
 
 2. Start:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ## Configuration
@@ -204,6 +205,14 @@ npm start
 
 2. Get your VLESS link at:
 - VLESS link: `https://[TUNNEL_DOMAIN]/[UUID]`
+
+## Testing
+
+```bash
+npm test
+```
+
+On every push to `main` and every PR, GitHub Actions runs the tests on Node.js 18/20/22 and lints the shell scripts with shellcheck; the image is built and pushed only when all checks pass.
 
 ## Notes
 
