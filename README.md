@@ -37,7 +37,7 @@ flowchart TD
 
 ## 系统要求
 
-- Node.js >= 18（Docker 镜像使用 Node.js 22）
+- Node.js >= 20（Docker 镜像使用 Node.js 22）
 - npm
 
 ## Cloudflare Zero Trust Tunnel 配置
@@ -209,10 +209,11 @@ npm start
 ## 测试
 
 ```bash
-npm test
+npm test       # 单元测试与端到端测试
+npm run lint   # ESLint 检查
 ```
 
-推送到 `main` 或提交 PR 时，GitHub Actions 会在 Node.js 18/20/22 上运行测试并用 shellcheck 检查脚本，全部通过后才构建并推送镜像。
+推送到 `main` 或提交 PR 时，GitHub Actions 会在 Node.js 20/22/24 上运行测试，并执行 ESLint 和 shellcheck 检查，全部通过后才构建并推送镜像。
 
 ## 发布新版本
 
@@ -223,7 +224,7 @@ npm version patch          # 或 minor / major，自动更新版本号、提交�
 git push --follow-tags
 ```
 
-推送标签后 GitHub Actions 会构建并推送 `x.y.z`、`x.y`、`latest` 镜像标签，并创建 GitHub Release。日常推送到 `main` 只会更新 `edge` 标签。
+推送标签后 GitHub Actions 会构建并推送 `x.y.z`、`x.y`、`latest` 镜像标签，创建 GitHub Release，并把 `docker-hub.md` 同步为 Docker Hub 仓库说明。日常推送到 `main` 只会更新 `edge` 标签。
 
 ## 注意事项
 

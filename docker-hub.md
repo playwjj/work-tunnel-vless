@@ -17,14 +17,17 @@
 
 ### 🏗️ 支持架构
 
-| 架构 | 标签 |
+所有标签均同时提供 `linux/amd64` 和 `linux/arm64` 镜像。
+
+| 标签 | 说明 |
 |------|------|
-| `linux/amd64` | `latest`, `x.x.x` |
-| `linux/arm64` | `latest`, `x.x.x` |
+| `latest` | 最新正式版本 |
+| `x.y.z` / `x.y` | 指定正式版本 |
+| `edge` | `main` 分支最新构建，可能不稳定 |
 
 ### 📋 技术要求
 
-*   Node.js (版本 >= 14)
+*   Node.js (版本 >= 20，仅宿主机部署时需要)
 *   npm
 *   Docker (可选)
 *   Docker Compose (推荐)
@@ -82,7 +85,6 @@ docker run -d \
 创建一个 `docker-compose.yml` 文件：
 
 ```yaml
-version: '3'
 services:
   work-tunnel-vless:
     image: passport888/work-tunnel-vless:latest
@@ -100,7 +102,7 @@ services:
 然后运行：
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 🌐 访问服务
@@ -128,5 +130,6 @@ docker-compose up -d
 
 GitHub: [https://github.com/playwjj/work-tunnel-vless](https://github.com/playwjj/work-tunnel-vless)  
 Docker Hub: [https://hub.docker.com/r/passport888/work-tunnel-vless](https://hub.docker.com/r/passport888/work-tunnel-vless)  
+GHCR: `ghcr.io/playwjj/work-tunnel-vless`  
 
 

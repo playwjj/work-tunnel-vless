@@ -37,7 +37,7 @@ flowchart TD
 
 ## Requirements
 
-- Node.js >= 18 (the Docker image uses Node.js 22)
+- Node.js >= 20 (the Docker image uses Node.js 22)
 - npm
 
 ## Cloudflare Zero Trust Tunnel Setup
@@ -209,10 +209,11 @@ npm start
 ## Testing
 
 ```bash
-npm test
+npm test       # unit and end-to-end tests
+npm run lint   # ESLint
 ```
 
-On every push to `main` and every PR, GitHub Actions runs the tests on Node.js 18/20/22 and lints the shell scripts with shellcheck; the image is built and pushed only when all checks pass.
+On every push to `main` and every PR, GitHub Actions runs the tests on Node.js 20/22/24 and runs ESLint and shellcheck; the image is built and pushed only when all checks pass.
 
 ## Releasing
 
@@ -223,7 +224,7 @@ npm version patch          # or minor / major: bumps the version, commits and cr
 git push --follow-tags
 ```
 
-Pushing the tag makes GitHub Actions build and push the `x.y.z`, `x.y` and `latest` image tags and create a GitHub Release. Regular pushes to `main` only update the `edge` tag.
+Pushing the tag makes GitHub Actions build and push the `x.y.z`, `x.y` and `latest` image tags, create a GitHub Release, and sync `docker-hub.md` to the Docker Hub repository description. Regular pushes to `main` only update the `edge` tag.
 
 ## Notes
 

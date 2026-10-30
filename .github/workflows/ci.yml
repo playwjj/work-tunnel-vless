@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [ 18, 20, 22 ]
+        node-version: [ 20, 22, 24 ]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -44,6 +44,24 @@ jobs:
       - name: Run tests
         run: npm test
 
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
   shellcheck:
     runs-on: ubuntu-latest
     steps:
@@ -52,10 +70,10 @@ jobs:
 
       # ubuntu-latest 预装 shellcheck；只拦截 warning 及以上级别
       - name: Lint shell scripts
-        run: shellcheck -S warning start.sh start-for-host.sh install.sh
+        run: shellcheck -S warning start.sh run-cloudflared.sh start-for-host.sh install.sh
 
   build-and-push:
-    needs: [ test, shellcheck ]
+    needs: [ test, lint, shellcheck ]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -137,3 +155,23 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+
+  # 发布时把 docker-hub.md 同步为 Docker Hub 仓库说明；
+  # DOCKER_PASSWORD 须为具有 Read, Write, Delete 权限的 Docker Hub 访问令牌
+  dockerhub-description:
+    needs: build-and-push
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: ${{ secrets.DOCKER_USERNAME }}/work-tunnel-vless
+          short-description: ${{ github.event.repository.description }}
+          readme-filepath: ./docker-hub.md
