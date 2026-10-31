@@ -1,4 +1,4 @@
-# Work Tunnel VLESS
+<h1 align="center">Work Tunnel VLESS</h1>
 
 [中文](README.md) | English
 
