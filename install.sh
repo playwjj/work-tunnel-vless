@@ -11,9 +11,11 @@
 #   6. 注册并启动系统服务（开机自启，SSH 关闭后持续运行）
 #      Alpine  → OpenRC
 #      Ubuntu/Debian → systemd
+#      supervisord 容器（如 Uppcoder 等 PaaS）→ supervisor.d 程序配置
 #
 # 兼容系统：
-#   Alpine Linux 3.20+、Ubuntu 20.04+、Debian 11+
+#   Alpine Linux 3.20+、Ubuntu 20.04+、Debian 11+、
+#   以 supervisord 为 1 号进程的容器环境
 #
 # 使用方法：
 #
@@ -43,6 +45,10 @@ set -e
 detect_init() {
   if command -v rc-service >/dev/null 2>&1; then
     echo "openrc"
+  elif [ "$(cat /proc/1/comm 2>/dev/null)" = "supervisord" ] || \
+       { command -v supervisorctl >/dev/null 2>&1 && [ -d "$HOME/.config/supervisor.d" ]; }; then
+    # PaaS 容器（如 Uppcoder）：没有 systemd/OpenRC，1 号进程就是 supervisord
+    echo "supervisord"
   elif command -v systemctl >/dev/null 2>&1; then
     echo "systemd"
   else
@@ -384,6 +390,69 @@ EOF
   fi
 }
 
+# supervisord 容器（如 Uppcoder 等 PaaS）：1 号进程是 supervisord，平台自身
+# 的服务（nginx、sshd 等）都由它管理。把两个程序按「一个程序一个文件」
+# 写进用户级 supervisor.d，由 supervisord 在启动时加载；部分平台只在栈
+# （重新）启动时扫描该目录，写完需在面板里 Restart 一次栈才生效。
+setup_supervisord() {
+  # 程序配置目录：只认平台已经存在的目录，自己新建的目录 supervisord
+  # 不一定会读，写了也白写
+  SUP_D=""
+  for d in "$HOME/.config/supervisor.d" "/etc/supervisor/conf.d" "$HOME/.config/supervisor/conf.d"; do
+    if [ -d "$d" ]; then SUP_D="$d"; break; fi
+  done
+  if [ -z "$SUP_D" ]; then
+    echo "Warning: supervisord detected but no supervisor.d/conf.d directory found, skipping." >&2
+    echo "Please start manually: cd $DEST && node src/server.js"
+    return
+  fi
+
+  # 日志目录：root 用 /var/log；普通用户用 ~/log（托管平台惯例，
+  # 且 /var/log 对普通用户通常不可写）
+  if [ "$IS_ROOT" = "1" ]; then LOG_DIR="/var/log"; else LOG_DIR="$HOME/log"; fi
+  mkdir -p "$LOG_DIR"
+
+  cat > "$SUP_D/$SERVICE_NAME.conf" << EOF
+[program:$SERVICE_NAME]
+command=$NODE_BIN src/server.js
+directory=$DEST
+autostart=true
+autorestart=true
+stdout_logfile=$LOG_DIR/$SERVICE_NAME.log
+redirect_stderr=true
+EOF
+
+  # cloudflared 服务（run-cloudflared.sh 自行读取同目录的 .env）
+  cat > "$SUP_D/cloudflared.conf" << EOF
+[program:cloudflared]
+command=$DEST/run-cloudflared.sh $CF_BIN
+directory=$DEST
+autostart=true
+autorestart=true
+stdout_logfile=$LOG_DIR/cloudflared.log
+redirect_stderr=true
+EOF
+  echo "    supervisor program files written to $SUP_D"
+
+  # 主配置文件位置各平台不同，supervisorctl 默认找不到时必须显式 -c
+  SUP_CONF=""
+  for f in "$HOME/.config/supervisord.conf" "/etc/supervisor/supervisord.conf" "/etc/supervisord.conf"; do
+    if [ -f "$f" ]; then SUP_CONF="$f"; break; fi
+  done
+  SUP_CTL="supervisorctl"
+  [ -n "$SUP_CONF" ] && SUP_CTL="supervisorctl -c $SUP_CONF"
+
+  # 尝试让正在运行的 supervisord 立即加载（其主配置 include 了该目录时
+  # 直接生效）；守护进程不接受也不算失败，按平台规则重启后自会加载。
+  if command -v supervisorctl >/dev/null 2>&1 && $SUP_CTL reread >/dev/null 2>&1; then
+    $SUP_CTL update >/dev/null 2>&1 || true
+    echo "    supervisord reloaded; check status with: $SUP_CTL status"
+  else
+    echo "Note: supervisord will pick up the new programs at its next start." >&2
+    echo "      On panel platforms (e.g. Uppcoder), restart the stack once to activate." >&2
+  fi
+}
+
 echo "==> Setting up services (init: $INIT_SYS, root: $IS_ROOT) ..."
 case "$INIT_SYS" in
   openrc)
@@ -395,6 +464,7 @@ case "$INIT_SYS" in
     fi
     ;;
   systemd) setup_systemd ;;
+  supervisord) setup_supervisord ;;
   *)
     echo "Warning: unknown init system, skipping service setup." >&2
     echo "Please start manually: cd $DEST && node src/server.js"
@@ -421,6 +491,13 @@ if [ "$INIT_SYS" = "systemd" ]; then
   echo "    $SC restart cloudflared       # 重启 Cloudflare 隧道"
   echo "    $JC -fu $SERVICE_NAME       # Node 应用日志"
   echo "    $JC -fu cloudflared          # Cloudflare 隧道日志"
+elif [ "$INIT_SYS" = "supervisord" ]; then
+  echo "  Useful commands:"
+  echo "    ${SUP_CTL:-supervisorctl} status    # 全部程序状态"
+  echo "    ${SUP_CTL:-supervisorctl} restart $SERVICE_NAME    # 重启 Node 应用"
+  echo "    ${SUP_CTL:-supervisorctl} restart cloudflared       # 重启 Cloudflare 隧道"
+  echo "    tail -f ${LOG_DIR:-$HOME/log}/$SERVICE_NAME.log # Node 应用日志"
+  echo "    tail -f ${LOG_DIR:-$HOME/log}/cloudflared.log    # Cloudflare 隧道日志"
 else
   echo "  Useful commands:"
   echo "    rc-service $SERVICE_NAME status    # Node 应用状态"
