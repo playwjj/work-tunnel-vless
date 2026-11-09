@@ -439,13 +439,37 @@ EOF
   for f in "$HOME/.config/supervisord.conf" "/etc/supervisor/supervisord.conf" "/etc/supervisord.conf"; do
     if [ -f "$f" ]; then SUP_CONF="$f"; break; fi
   done
-  SUP_CTL="supervisorctl"
-  [ -n "$SUP_CONF" ] && SUP_CTL="supervisorctl -c $SUP_CONF"
+
+  # supervisorctl 不一定在 PATH 里（如 Uppcoder 只把 node 放进 PATH，
+  # supervisorctl 在 supervisord 自己的 bin 目录下）——从 1 号进程的
+  # 命令行里找 supervisord 的位置，它的同目录下就有 supervisorctl
+  SUP_CTL_BIN=""
+  if command -v supervisorctl >/dev/null 2>&1; then
+    SUP_CTL_BIN="supervisorctl"
+  elif [ -r /proc/1/cmdline ]; then
+    for a in $(tr '\0' ' ' < /proc/1/cmdline); do
+      case "$a" in
+        */supervisord)
+          d="$(dirname "$a")"
+          if [ -x "$d/supervisorctl" ]; then SUP_CTL_BIN="$d/supervisorctl"; break; fi
+          ;;
+      esac
+    done
+  fi
+  SUP_CTL=""
+  if [ -n "$SUP_CTL_BIN" ]; then
+    SUP_CTL="$SUP_CTL_BIN"
+    [ -n "$SUP_CONF" ] && SUP_CTL="$SUP_CTL_BIN -c $SUP_CONF"
+  fi
 
   # 尝试让正在运行的 supervisord 立即加载（其主配置 include 了该目录时
-  # 直接生效）；守护进程不接受也不算失败，按平台规则重启后自会加载。
-  if command -v supervisorctl >/dev/null 2>&1 && $SUP_CTL reread >/dev/null 2>&1; then
+  # 直接生效）；守护进程没接纳也不算失败，按平台规则重启后自会加载。
+  SUP_LIVE=0
+  if [ -n "$SUP_CTL" ] && $SUP_CTL reread >/dev/null 2>&1; then
     $SUP_CTL update >/dev/null 2>&1 || true
+    $SUP_CTL status "$SERVICE_NAME" >/dev/null 2>&1 && SUP_LIVE=1
+  fi
+  if [ "$SUP_LIVE" = "1" ]; then
     echo "    supervisord reloaded; check status with: $SUP_CTL status"
   else
     echo "Note: supervisord will pick up the new programs at its next start." >&2
