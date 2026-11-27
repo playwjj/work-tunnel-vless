@@ -39,6 +39,9 @@
 #   PORT          监听端口，可选，默认 3000
 #   NAME          节点名称，可选，默认取系统 hostname
 #
+# 纯 IPv6 机器需先配置 DNS64/NAT64 才能访问 GitHub，脚本会自动检测并给出提示；
+# 设置 SKIP_NET_CHECK=1 可跳过网络自检。
+#
 set -e
 
 # ── 检测初始化系统 ────────────────────────────────────────────
@@ -64,6 +67,90 @@ INIT_SYS="$(detect_init)"
 # 用户级服务（systemctl --user），无需任何系统权限。
 IS_ROOT=0
 [ "$(id -u)" = "0" ] && IS_ROOT=1
+
+# ── 网络自检（纯 IPv6 / DNS64）────────────────────────────────
+# GitHub 没有 IPv6 地址，纯 IPv6 机器（常见于 PVE LXC 小鸡）若未配置 DNS64/NAT64
+# 会在后续下载时失败。这里提前检测并给出明确提示，可用 SKIP_NET_CHECK=1 跳过。
+has_ipv4_route() {
+  # /proc/net/route 中 Destination 为 00000000 的行即 IPv4 默认路由
+  [ -r /proc/net/route ] && awk 'NR > 1 && $2 == "00000000" { found = 1 } END { exit !found }' /proc/net/route
+}
+
+has_ipv6_route() {
+  # /proc/net/ipv6_route 中目标 ::/0 的行即 IPv6 默认路由（排除 lo 上的 unreachable 项）
+  [ -r /proc/net/ipv6_route ] && awk '$1 == "00000000000000000000000000000000" && $2 == "00" && $10 != "lo" { found = 1 } END { exit !found }' /proc/net/ipv6_route
+}
+
+can_resolve() {
+  if command -v getent >/dev/null 2>&1; then
+    getent hosts "$1" >/dev/null 2>&1
+  elif command -v nslookup >/dev/null 2>&1; then
+    nslookup "$1" >/dev/null 2>&1
+  else
+    return 0 # 无法检测时不误报
+  fi
+}
+
+can_reach() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSI -o /dev/null --max-time 10 "$1"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q --spider -T 10 "$1"
+  else
+    return 0 # 无下载工具时交给后续步骤处理
+  fi
+}
+
+print_dns64_hint() {
+  cat >&2 <<'EOF'
+
+  This looks like an IPv6-only machine. GitHub has no IPv6 address, so you
+  need a DNS64/NAT64 resolver to reach it, e.g. the public nat64.net servers:
+
+    cp /etc/resolv.conf /etc/resolv.conf.bak
+    printf 'nameserver 2a00:1098:2b::1\nnameserver 2a01:4f8:c2c:123f::1\nnameserver 2a00:1098:2c::1\n' > /etc/resolv.conf
+
+  On a Proxmox (PVE) LXC container, also run the following so PVE does not
+  overwrite resolv.conf on restart (or set the DNS in the PVE panel instead):
+
+    touch /etc/.pve-ignore.resolv.conf
+
+  If systemd-resolved is active, set DNS= in /etc/systemd/resolved.conf and
+  run: systemctl restart systemd-resolved
+
+  For long-term use, consider Cloudflare WARP to get IPv4 egress.
+  Re-run this installer afterwards (or set SKIP_NET_CHECK=1 to bypass).
+
+EOF
+}
+
+check_network() {
+  [ "$SKIP_NET_CHECK" = "1" ] && return
+
+  IPV6_ONLY=0
+  if ! has_ipv4_route && has_ipv6_route; then
+    IPV6_ONLY=1
+    echo "==> Detected IPv6-only network."
+  fi
+
+  if ! can_resolve github.com; then
+    echo "Error: cannot resolve github.com, DNS is not working." >&2
+    if [ -r /etc/resolv.conf ]; then
+      echo "  Current nameservers:" >&2
+      grep '^nameserver' /etc/resolv.conf | sed 's/^/    /' >&2
+    fi
+    [ "$IPV6_ONLY" = "1" ] && print_dns64_hint
+    exit 1
+  fi
+
+  if ! can_reach https://github.com; then
+    echo "Error: cannot connect to https://github.com." >&2
+    [ "$IPV6_ONLY" = "1" ] && print_dns64_hint
+    exit 1
+  fi
+}
+
+check_network
 
 # ── 依赖自检与安装 ────────────────────────────────────────────
 check_deps() {
