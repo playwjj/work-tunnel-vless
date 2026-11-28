@@ -16,7 +16,12 @@
   },
   "private": false,
   "dependencies": {
+    "@prisma/composer": "0.40.0",
+    "@prisma/composer-prisma-cloud": "0.40.0",
+    "@prisma/orm-postgres": "8.0.0-rc.25",
     "dotenv": "^16.5.0",
+    "effect": "4.1.4",
+    "pg": "^8.22.0",
     "ws": "^8.22.0"
   },
   "engines": {
@@ -24,7 +29,15 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/pg": "^8.20.0",
     "eslint": "^10.14.0",
-    "globals": "^17.13.0"
+    "globals": "^17.13.0",
+    "prisma": "8.0.0-rc.35"
+  },
+  "overrides": {
+    "@effect/platform-bun": "4.1.4",
+    "@effect/platform-node": "4.1.4",
+    "@effect/platform-node-shared": "4.1.4",
+    "effect": "4.1.4"
   }
 }
